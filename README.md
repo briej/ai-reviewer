@@ -22,7 +22,7 @@ pip install ai-reviewer
 Or from source:
 
 ```bash
-git clone https://github.com/your-username/ai-reviewer.git
+git clone https://github.com/briej/ai-reviewer.git
 cd ai-reviewer
 pip install -e .
 ```

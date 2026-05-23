@@ -48,3 +48,5 @@ htmlcov/
 # Reports
 reports/
 *.md.bak
+.vscode/
+__pycache__/
