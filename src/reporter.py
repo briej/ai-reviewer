@@ -135,6 +135,13 @@ def save_html_report(results: Dict[str, List[Dict[str, Any]]], output_path: str)
 
 def save_sarif_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
     """Save report in SARIF format for GitHub Code Scanning."""
+    # Map our severity to SARIF levels
+    severity_map = {
+        "critical": "error",
+        "warning": "warning",
+        "info": "note"
+    }
+    
     sarif = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
         "version": "2.1.0",
@@ -143,7 +150,7 @@ def save_sarif_report(results: Dict[str, List[Dict[str, Any]]], output_path: str
                 "driver": {
                     "name": "ai-reviewer",
                     "version": "1.2",
-                    "informationUri": "https://github.com/ai-reviewer",
+                    "informationUri": "https://github.com/briej/ai-reviewer",
                 }
             },
             "results": [],
@@ -151,17 +158,24 @@ def save_sarif_report(results: Dict[str, List[Dict[str, Any]]], output_path: str
     }
     
     for severity in ("critical", "warning", "info"):
+        sarif_level = severity_map[severity]
         for issue in results[severity]:
+            # Clean location for SARIF (remove line number for root level)
+            location = issue["location"]
+            if ":" in location:
+                location = location.split(":")[0]
+            
             sarif["runs"][0]["results"].append({
                 "message": {"text": issue["message"]},
-                "level": severity,
+                "level": sarif_level,
                 "ruleId": issue["type"],
                 "locations": [{
                     "physicalLocation": {
-                        "artifactLocation": {"uri": issue["location"]},
+                        "artifactLocation": {"uri": location},
                     }
                 }],
             })
     
+    import json
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(sarif, f, indent=2)
