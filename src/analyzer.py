@@ -45,13 +45,14 @@ def _get_lang(file_path: Path) -> str:
 
 
 def _apply_metric_rules(
+    file_path: Path,
     lines: List[str],
     lang: str,
     rules: Dict[str, Any],
     issues: List[Dict[str, Any]],
 ) -> None:
     """Apply metric-based rules (line count, nesting depth, etc.)."""
-    file_name = issues[0]["location"].split(":")[0] if issues else ""
+    file_name = file_path.name
     
     for category, cat_rules in rules.items():
         for rule_id, rule in cat_rules.items():
@@ -182,7 +183,7 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                         continue
     
     # Apply metric-based rules
-    _apply_metric_rules(lines, lang, rules, issues)
+    _apply_metric_rules(file_path, lines, lang, rules, issues)
     
     # Built-in hardcoded rules (backward compatibility + JS-specific)
     for i, line in enumerate(lines, 1):

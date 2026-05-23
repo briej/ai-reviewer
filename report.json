@@ -1,0 +1,108 @@
+{
+  "version": "1.2",
+  "tool": "ai-reviewer",
+  "generated_at": "2026-05-24 04:10:43",
+  "summary": {
+    "critical": 5,
+    "warning": 11,
+    "info": 0
+  },
+  "issues": [
+    {
+      "severity": "critical",
+      "type": "sql-injection",
+      "location": "test_analyzer.py:14",
+      "message": "SQL Injection via f-string. Use parameterized queries."
+    },
+    {
+      "severity": "critical",
+      "type": "hardcoded-secret",
+      "location": "test_analyzer.py:8",
+      "message": "Hardcoded secret. Use environment variables."
+    },
+    {
+      "severity": "critical",
+      "type": "code-injection",
+      "location": "test_analyzer.py:20",
+      "message": "eval()/exec() are dangerous \u2014 possible RCE."
+    },
+    {
+      "severity": "critical",
+      "type": "debug-enabled",
+      "location": "test_analyzer.py",
+      "message": "DEBUG mode enabled \u2014 disable in production."
+    },
+    {
+      "severity": "critical",
+      "type": "debug-enabled",
+      "location": "analyzer.py",
+      "message": "DEBUG mode enabled \u2014 disable in production."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":74",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":45",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "long-function",
+      "location": ":61",
+      "message": "Function too long (>50 lines). Split into smaller ones."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":185",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":75",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": "test_analyzer.py:37",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "weak-crypto",
+      "location": "test_analyzer.py:26",
+      "message": "Weak hash. Use SHA-256, bcrypt, or Argon2."
+    },
+    {
+      "severity": "warning",
+      "type": "long-function",
+      "location": ":137",
+      "message": "Function too long (>50 lines). Split into smaller ones."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":241",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":50",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    },
+    {
+      "severity": "warning",
+      "type": "deep-nesting",
+      "location": ":37",
+      "message": "Too deep nesting (>4 levels). Use early return."
+    }
+  ]
+}
