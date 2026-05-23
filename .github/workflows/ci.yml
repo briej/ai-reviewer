@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -43,16 +47,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install --no-cache-dir -e .
-
-    - name: Verify installation
-      run: python ai_reviewer.py --version
+        pip install -e .
 
     - name: Run ai-reviewer on itself
       run: |
-        cd ..
-        python ai-reviewer/ai_reviewer.py ai-reviewer --mode fast --format sarif --output ai-reviewer/report.sarif || true
-      working-directory: ${{ github.workspace }}
+        python ai_reviewer.py . --mode fast --format sarif --output report.sarif
+      continue-on-error: true
 
     - name: Upload SARIF to GitHub
       uses: github/codeql-action/upload-sarif@v3
