@@ -1,0 +1,8 @@
+- id: ai-reviewer
+  name: ai-reviewer
+  description: AI-powered code review with OWASP checks
+  entry: ai-review
+  language: python
+  types: [python, javascript, typescript]
+  require_serial: true
+  additional_dependencies: []

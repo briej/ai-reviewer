@@ -1,0 +1,104 @@
+{
+  "security": {
+    "sql-injection": {
+      "pattern": "execute\\(f?['\"].*\\{.*\\}",
+      "severity": "critical",
+      "message": "Возможна SQL injection. Используй параметры запроса",
+      "example": "cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))",
+      "languages": ["python"]
+    },
+    "hardcoded-password": {
+      "pattern": "(password|passwd|pwd)\\s*=\\s*['\"][^'\"]+['\"]",
+      "severity": "critical",
+      "message": "Hardcoded пароль. Используй переменные окружения",
+      "example": "import os\npassword = os.getenv('DB_PASSWORD')",
+      "languages": ["python", "javascript"]
+    },
+    "hardcoded-api-key": {
+      "pattern": "(api_key|apikey|api-key|secret)\\s*=\\s*['\"][a-zA-Z0-9]{20,}['\"]",
+      "severity": "critical",
+      "message": "Hardcoded API ключ. Используй переменные окружения",
+      "example": "api_key = os.getenv('API_KEY')",
+      "languages": ["python", "javascript"]
+    },
+    "insecure-random": {
+      "pattern": "random\\.random\\(\\)|random\\.randint\\(",
+      "severity": "warning",
+      "message": "random не криптографически безопасен. Используй secrets",
+      "example": "import secrets\ntoken = secrets.token_hex(32)",
+      "languages": ["python"]
+    }
+  },
+  "bugs": {
+    "none-comparison": {
+      "pattern": "==\\s*None|!=\\s*None",
+      "severity": "info",
+      "message": "Используй 'is None' или 'is not None' вместо '== None'",
+      "example": "if value is None:\n    pass",
+      "languages": ["python"]
+    },
+    "bare-except": {
+      "pattern": "except\\s*:",
+      "severity": "warning",
+      "message": "Лови конкретные исключения, а не все подряд",
+      "example": "except ValueError as e:\n    handle_error(e)",
+      "languages": ["python"]
+    },
+    "mutable-default": {
+      "pattern": "def\\s+\\w+\\([^)]*\\[\\]|def\\s+\\w+\\([^)]*\\{\\}",
+      "severity": "warning",
+      "message": "Мутабельные аргументы по умолчанию - антипаттерн",
+      "example": "def func(items=None):\n    if items is None:\n        items = []",
+      "languages": ["python"]
+    }
+  },
+  "smells": {
+    "long-function": {
+      "type": "metric",
+      "metric": "line_count",
+      "threshold": 50,
+      "severity": "warning",
+      "message": "Функция слишком длинная (>50 строк). Разбей на меньшие",
+      "languages": ["python", "javascript"]
+    },
+    "deep-nesting": {
+      "type": "metric",
+      "metric": "nesting_depth",
+      "threshold": 4,
+      "severity": "warning",
+      "message": "Слишком глубокое вложение (>4 уровня). Используй ранний return",
+      "languages": ["python", "javascript"]
+    },
+    "too-many-args": {
+      "type": "metric",
+      "metric": "arg_count",
+      "threshold": 5,
+      "severity": "info",
+      "message": "Слишком много аргументов. Используй объект/словарь",
+      "languages": ["python", "javascript"]
+    },
+    "duplicate-code": {
+      "type": "pattern",
+      "min_lines": 5,
+      "severity": "warning",
+      "message": "Дубликат кода найден. Выдели в отдельную функцию",
+      "languages": ["python", "javascript"]
+    }
+  },
+  "performance": {
+    "string-concat-loop": {
+      "pattern": "for\\s+\\w+\\s+in\\s+\\w+:\\s+\\w+\\s*\\+=\\s*['\"]",
+      "severity": "info",
+      "message": "Конкатенация строк в цикле. Используй join()",
+      "example": "result = ''.join(items)",
+      "languages": ["python"]
+    },
+    "list-in-loop": {
+      "pattern": "for\\s+\\w+\\s+in\\s+range\\(len\\(",
+      "severity": "info",
+      "message": "Используй enumerate() вместо range(len())",
+      "example": "for i, item in enumerate(items):",
+      "languages": ["python"]
+    }
+  }
+}

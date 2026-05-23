@@ -1,0 +1,49 @@
+# ai-reviewer configuration file
+# Place this in your project root or ~/.ai-reviewer.yaml
+
+mode: fast
+threads: 4
+severity: all
+
+# Ignore patterns
+ignore:
+  - __pycache__
+  - .git
+  - node_modules
+  - .venv
+  - venv
+  - dist
+  - build
+  - "*.min.js"
+  - "*.min.css"
+
+# Language extensions
+languages:
+  python: [".py"]
+  javascript: [".js", ".jsx"]
+  typescript: [".ts", ".tsx"]
+  sql: [".sql"]
+  go: [".go"]
+  java: [".java"]
+  rust: [".rs"]
+  cpp: [".cpp", ".c", ".h", ".hpp"]
+
+# Cloud settings
+cloud:
+  provider: deepseek
+  model: deepseek-coder
+  timeout: 30
+
+# Custom rules (extend default OWASP rules)
+rules:
+  - id: no-print-statements
+    pattern: "print("
+    severity: info
+    message: "Remove print statements before production"
+    languages: [python]
+
+  - id: no-debugger
+    pattern: "debugger"
+    severity: warning
+    message: "Remove debugger statements"
+    languages: [javascript, typescript]

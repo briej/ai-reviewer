@@ -1,0 +1,30 @@
+{
+  "default_mode": "auto",
+  "ai_provider": {
+    "type": "ollama",
+    "model": "llama3.2",
+    "base_url": "http://localhost:11434",
+    "timeout": 120
+  },
+  "rules": {
+    "enabled": ["security", "bugs", "smells", "performance"],
+    "severity_filter": "all"
+  },
+  "languages": {
+    "supported": ["python", "javascript", "typescript", "sql"],
+    "extensions": {
+      "python": [".py"],
+      "javascript": [".js", ".jsx", ".ts", ".tsx"],
+      "sql": [".sql"]
+    }
+  },
+  "output": {
+    "format": "cli",
+    "color": true,
+    "verbose": false
+  },
+  "performance": {
+    "max_file_size_mb": 10,
+    "parallel_workers": 4
+  }
+}
