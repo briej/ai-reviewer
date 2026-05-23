@@ -1,11 +1,141 @@
 """Static analysis engine for ai-reviewer"""
+import json
 import re
 from pathlib import Path
 from typing import List, Dict, Any
 
 
+# Cache for loaded rules
+_RULES_CACHE: Dict[str, Any] = None
+
+
+def _load_rules() -> Dict[str, Any]:
+    """Load rules from config/rules.json with caching."""
+    global _RULES_CACHE
+    if _RULES_CACHE is not None:
+        return _RULES_CACHE
+    
+    rules_path = Path(__file__).parent.parent / "config" / "rules.json"
+    try:
+        with open(rules_path, "r", encoding="utf-8") as f:
+            _RULES_CACHE = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        _RULES_CACHE = {}
+    return _RULES_CACHE
+
+
+def _get_lang(file_path: Path) -> str:
+    """Map file extension to language name."""
+    ext_map = {
+        ".py": "python",
+        ".js": "javascript",
+        ".jsx": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".sql": "sql",
+        ".go": "go",
+        ".java": "java",
+        ".rs": "rust",
+        ".c": "c",
+        ".cpp": "cpp",
+        ".h": "c",
+        ".hpp": "cpp",
+    }
+    return ext_map.get(file_path.suffix.lower(), "")
+
+
+def _apply_metric_rules(
+    lines: List[str],
+    lang: str,
+    rules: Dict[str, Any],
+    issues: List[Dict[str, Any]],
+) -> None:
+    """Apply metric-based rules (line count, nesting depth, etc.)."""
+    file_name = issues[0]["location"].split(":")[0] if issues else ""
+    
+    for category, cat_rules in rules.items():
+        for rule_id, rule in cat_rules.items():
+            if rule.get("type") != "metric":
+                continue
+            if lang not in rule.get("languages", []):
+                continue
+            
+            metric = rule.get("metric")
+            threshold = rule.get("threshold", 0)
+            
+            if metric == "line_count":
+                # Check each function length
+                in_func = False
+                func_start = 0
+                indent_level = 0
+                for i, line in enumerate(lines, 1):
+                    stripped = line.strip()
+                    if stripped.startswith("def ") or stripped.startswith("function "):
+                        in_func = True
+                        func_start = i
+                        indent_level = len(line) - len(line.lstrip())
+                    elif in_func and stripped:
+                        current_indent = len(line) - len(line.lstrip())
+                        if current_indent <= indent_level and not stripped.startswith("#"):
+                            func_lines = i - func_start
+                            if func_lines > threshold:
+                                issues.append({
+                                    "severity": rule.get("severity", "warning"),
+                                    "type": rule_id,
+                                    "location": f"{file_name}:{func_start}",
+                                    "message": rule.get("message", "Metric issue"),
+                                })
+                            in_func = False
+                # Check last function
+                if in_func:
+                    func_lines = len(lines) - func_start + 1
+                    if func_lines > threshold:
+                        issues.append({
+                            "severity": rule.get("severity", "warning"),
+                            "type": rule_id,
+                            "location": f"{file_name}:{func_start}",
+                            "message": rule.get("message", "Metric issue"),
+                        })
+            
+            elif metric == "nesting_depth":
+                max_depth = 0
+                max_line = 0
+                depth = 0
+                for i, line in enumerate(lines, 1):
+                    stripped = line.strip()
+                    if stripped.endswith(":") and not stripped.startswith("#"):
+                        depth += 1
+                        if depth > max_depth:
+                            max_depth = depth
+                            max_line = i
+                    elif stripped and not line.startswith(" ") and not line.startswith("\t"):
+                        depth = 0
+                if max_depth > threshold:
+                    issues.append({
+                        "severity": rule.get("severity", "warning"),
+                        "type": rule_id,
+                        "location": f"{file_name}:{max_line}",
+                        "message": rule.get("message", "Deep nesting"),
+                    })
+            
+            elif metric == "arg_count":
+                for i, line in enumerate(lines, 1):
+                    match = re.search(r"def\s+\w+\s*\((.*?)\)", line)
+                    if match:
+                        args = match.group(1)
+                        # Count non-empty args
+                        arg_count = len([a.strip() for a in args.split(",") if a.strip() and a.strip() != "self" and a.strip() != "cls"])
+                        if arg_count > threshold:
+                            issues.append({
+                                "severity": rule.get("severity", "info"),
+                                "type": rule_id,
+                                "location": f"{file_name}:{i}",
+                                "message": rule.get("message", "Too many args"),
+                            })
+
+
 def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
-    """Fast rule-based analysis (OWASP Top 10).
+    """Fast rule-based analysis (OWASP Top 10 + custom rules from JSON).
     
     Args:
         file_path: Path to the file being analyzed.
@@ -16,70 +146,66 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
     """
     issues: List[Dict[str, Any]] = []
     lines = content.split("\n")
-    lang = file_path.suffix.lower()
+    lang = _get_lang(file_path)
     
-    # OWASP A02: Cryptographic Failures
+    # Load rules from JSON
+    rules = _load_rules()
+    
+    # Apply pattern-based rules from JSON
+    if rules:
+        for category, cat_rules in rules.items():
+            for rule_id, rule in cat_rules.items():
+                # Skip metric rules (handled separately)
+                if rule.get("type") == "metric":
+                    continue
+                
+                # Check language filter
+                rule_langs = rule.get("languages", [])
+                if rule_langs and lang not in rule_langs:
+                    continue
+                
+                pattern = rule.get("pattern", "")
+                if not pattern:
+                    continue
+                
+                for i, line in enumerate(lines, 1):
+                    try:
+                        if re.search(pattern, line, re.IGNORECASE):
+                            issues.append({
+                                "severity": rule.get("severity", "warning"),
+                                "type": rule_id,
+                                "location": f"{file_path.name}:{i}",
+                                "message": rule.get("message", f"Issue detected by {rule_id}"),
+                            })
+                    except re.error:
+                        # Skip invalid regex patterns
+                        continue
+    
+    # Apply metric-based rules
+    _apply_metric_rules(lines, lang, rules, issues)
+    
+    # Built-in hardcoded rules (backward compatibility + JS-specific)
     for i, line in enumerate(lines, 1):
-        # Hardcoded secrets
-        if re.search(
-            r"(password|passwd|pwd|secret|api_key|apikey|token)\s*=\s*['\"][^'\"]{4,}['\"]",
-            line, re.IGNORECASE,
-        ):
-            issues.append({
-                "severity": "critical",
-                "type": "hardcoded-secret",
-                "location": f"{file_path.name}:{i}",
-                "message": "Hardcoded secret. Use environment variables.",
-            })
-        
-        # Hardcoded API keys
-        if re.search(
-            r"(api[_-]?key|apikey|access[_-]?token)\s*=\s*['\"][a-zA-Z0-9]{16,}['\"]",
-            line, re.IGNORECASE,
-        ):
-            issues.append({
-                "severity": "critical",
-                "type": "hardcoded-api-key",
-                "location": f"{file_path.name}:{i}",
-                "message": "Hardcoded API key. Use os.getenv() or dotenv.",
-            })
-        
         # Weak hashes
         if re.search(r"\b(md5|sha1)\s*\(", line, re.IGNORECASE):
-            issues.append({
-                "severity": "warning",
-                "type": "weak-crypto",
-                "location": f"{file_path.name}:{i}",
-                "message": "Weak hash. Use SHA-256, bcrypt, or Argon2.",
-            })
-        
-        # SQL Injection
-        if re.search(r"execute\s*\(\s*f?['\"].*\{.*\}", line, re.IGNORECASE):
-            issues.append({
-                "severity": "critical",
-                "type": "sql-injection",
-                "location": f"{file_path.name}:{i}",
-                "message": "SQL Injection via f-string. Use parameterized queries.",
-            })
-        
-        # eval / exec
-        if re.search(r"\b(eval|exec)\s*\(", line):
-            issues.append({
-                "severity": "critical",
-                "type": "code-injection",
-                "location": f"{file_path.name}:{i}",
-                "message": "eval()/exec() are dangerous — possible RCE.",
-            })
-        
-        # JavaScript / TypeScript specific
-        if lang in (".js", ".ts", ".jsx", ".tsx"):
-            if "innerHTML" in line or "outerHTML" in line:
+            if not any(i["type"] == "weak-crypto" for i in issues if i["location"] == f"{file_path.name}:{i}"):
                 issues.append({
                     "severity": "warning",
-                    "type": "xss",
+                    "type": "weak-crypto",
                     "location": f"{file_path.name}:{i}",
-                    "message": "innerHTML is vulnerable to XSS. Use textContent.",
+                    "message": "Weak hash. Use SHA-256, bcrypt, or Argon2.",
                 })
+            
+        # JavaScript / TypeScript specific
+        if lang in ("javascript", "typescript"):
+            if "innerHTML" in line or "outerHTML" in line:
+                if not any(i["type"] == "xss" and "innerHTML" in i["message"] for i in issues):
+                    issues.append({
+                        "severity": "warning",
+                        "type": "xss",
+                        "location": f"{file_path.name}:{i}",
+                        "message": "innerHTML is vulnerable to XSS. Use textContent.",
+                    })
             
             if "document.write" in line:
                 issues.append({
@@ -87,14 +213,6 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                     "type": "xss",
                     "location": f"{file_path.name}:{i}",
                     "message": "document.write is deprecated and dangerous.",
-                })
-            
-            if "eval(" in line:
-                issues.append({
-                    "severity": "critical",
-                    "type": "code-injection",
-                    "location": f"{file_path.name}:{i}",
-                    "message": "eval() is dangerous for XSS.",
                 })
             
             if "console.log" in line or "console.error" in line:
@@ -105,40 +223,23 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                     "message": "console.log found — remove before production.",
                 })
         
-        # Insecure random
-        if re.search(r"\brandom\.(random|randint)\b", line):
-            issues.append({
-                "severity": "warning",
-                "type": "insecure-random",
-                "location": f"{file_path.name}:{i}",
-                "message": "random is not cryptographically secure. Use secrets.",
-            })
-        
-        # Bare except
-        if re.match(r"\s*except\s*:", line):
-            issues.append({
-                "severity": "warning",
-                "type": "bare-except",
-                "location": f"{file_path.name}:{i}",
-                "message": "Bare except catches everything — be specific.",
-            })
-        
-        # Mutable default arguments
-        if re.search(r"def\s+\w+\s*\([^)]*=\[\]|def\s+\w+\s*\([^)]*=\{\}", line):
-            issues.append({
-                "severity": "warning",
-                "type": "mutable-default",
-                "location": f"{file_path.name}:{i}",
-                "message": "Mutable default argument — anti-pattern.",
-            })
-    
     # OWASP A05: Security Misconfiguration
     if "DEBUG = True" in content or "debug=True" in content:
-        issues.append({
-            "severity": "critical",
-            "type": "debug-enabled",
-            "location": file_path.name,
-            "message": "DEBUG mode enabled — disable in production.",
-        })
+        if not any(i["type"] == "debug-enabled" for i in issues):
+            issues.append({
+                "severity": "critical",
+                "type": "debug-enabled",
+                "location": file_path.name,
+                "message": "DEBUG mode enabled — disable in production.",
+            })
     
-    return issues
+    # Deduplicate issues by location + type
+    seen = set()
+    unique_issues = []
+    for issue in issues:
+        key = (issue["location"], issue["type"])
+        if key not in seen:
+            seen.add(key)
+            unique_issues.append(issue)
+    
+    return unique_issues

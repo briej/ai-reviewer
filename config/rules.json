@@ -3,28 +3,35 @@
     "sql-injection": {
       "pattern": "execute\\(f?['\"].*\\{.*\\}",
       "severity": "critical",
-      "message": "Возможна SQL injection. Используй параметры запроса",
+      "message": "SQL Injection via f-string. Use parameterized queries.",
       "example": "cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))",
       "languages": ["python"]
     },
-    "hardcoded-password": {
-      "pattern": "(password|passwd|pwd)\\s*=\\s*['\"][^'\"]+['\"]",
+    "hardcoded-secret": {
+      "pattern": "(password|passwd|pwd|secret|api_key|apikey|token)\\s*=\\s*['\"][^'\"]{4,}['\"]",
       "severity": "critical",
-      "message": "Hardcoded пароль. Используй переменные окружения",
+      "message": "Hardcoded secret. Use environment variables.",
       "example": "import os\npassword = os.getenv('DB_PASSWORD')",
       "languages": ["python", "javascript"]
     },
     "hardcoded-api-key": {
       "pattern": "(api_key|apikey|api-key|secret)\\s*=\\s*['\"][a-zA-Z0-9]{20,}['\"]",
       "severity": "critical",
-      "message": "Hardcoded API ключ. Используй переменные окружения",
+      "message": "Hardcoded API key. Use os.getenv() or dotenv.",
       "example": "api_key = os.getenv('API_KEY')",
+      "languages": ["python", "javascript"]
+    },
+    "code-injection": {
+      "pattern": "\\b(eval|exec)\\s*\\(",
+      "severity": "critical",
+      "message": "eval()/exec() are dangerous — possible RCE.",
+      "example": "# Use ast.literal_eval for safe evaluation",
       "languages": ["python", "javascript"]
     },
     "insecure-random": {
       "pattern": "random\\.random\\(\\)|random\\.randint\\(",
       "severity": "warning",
-      "message": "random не криптографически безопасен. Используй secrets",
+      "message": "random is not cryptographically secure. Use secrets.",
       "example": "import secrets\ntoken = secrets.token_hex(32)",
       "languages": ["python"]
     }
@@ -33,21 +40,21 @@
     "none-comparison": {
       "pattern": "==\\s*None|!=\\s*None",
       "severity": "info",
-      "message": "Используй 'is None' или 'is not None' вместо '== None'",
+      "message": "Use 'is None' or 'is not None' instead of '== None'",
       "example": "if value is None:\n    pass",
       "languages": ["python"]
     },
     "bare-except": {
       "pattern": "except\\s*:",
       "severity": "warning",
-      "message": "Лови конкретные исключения, а не все подряд",
+      "message": "Bare except catches everything — be specific.",
       "example": "except ValueError as e:\n    handle_error(e)",
       "languages": ["python"]
     },
     "mutable-default": {
       "pattern": "def\\s+\\w+\\([^)]*\\[\\]|def\\s+\\w+\\([^)]*\\{\\}",
       "severity": "warning",
-      "message": "Мутабельные аргументы по умолчанию - антипаттерн",
+      "message": "Mutable default argument — anti-pattern.",
       "example": "def func(items=None):\n    if items is None:\n        items = []",
       "languages": ["python"]
     }
@@ -58,7 +65,7 @@
       "metric": "line_count",
       "threshold": 50,
       "severity": "warning",
-      "message": "Функция слишком длинная (>50 строк). Разбей на меньшие",
+      "message": "Function too long (>50 lines). Split into smaller ones.",
       "languages": ["python", "javascript"]
     },
     "deep-nesting": {
@@ -66,7 +73,7 @@
       "metric": "nesting_depth",
       "threshold": 4,
       "severity": "warning",
-      "message": "Слишком глубокое вложение (>4 уровня). Используй ранний return",
+      "message": "Too deep nesting (>4 levels). Use early return.",
       "languages": ["python", "javascript"]
     },
     "too-many-args": {
@@ -74,14 +81,7 @@
       "metric": "arg_count",
       "threshold": 5,
       "severity": "info",
-      "message": "Слишком много аргументов. Используй объект/словарь",
-      "languages": ["python", "javascript"]
-    },
-    "duplicate-code": {
-      "type": "pattern",
-      "min_lines": 5,
-      "severity": "warning",
-      "message": "Дубликат кода найден. Выдели в отдельную функцию",
+      "message": "Too many arguments. Use object/dict.",
       "languages": ["python", "javascript"]
     }
   },
@@ -89,14 +89,14 @@
     "string-concat-loop": {
       "pattern": "for\\s+\\w+\\s+in\\s+\\w+:\\s+\\w+\\s*\\+=\\s*['\"]",
       "severity": "info",
-      "message": "Конкатенация строк в цикле. Используй join()",
+      "message": "String concatenation in loop. Use join()",
       "example": "result = ''.join(items)",
       "languages": ["python"]
     },
     "list-in-loop": {
       "pattern": "for\\s+\\w+\\s+in\\s+range\\(len\\(",
       "severity": "info",
-      "message": "Используй enumerate() вместо range(len())",
+      "message": "Use enumerate() instead of range(len())",
       "example": "for i, item in enumerate(items):",
       "languages": ["python"]
     }

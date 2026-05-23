@@ -5,7 +5,7 @@
 ## 🚀 Быстрый старт
 
 ```bash
-git clone https://github.com/твой-ник/ai-reviewer.git
+git clone https://github.com/briej/ai-reviewer.git
 cd ai-reviewer
 pip install -e .
 pip install pytest pytest-cov
