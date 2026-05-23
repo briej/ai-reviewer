@@ -29,6 +29,26 @@ pip install -e .
 
 ---
 
+## 🐳 Docker
+
+Run without installing anything:
+
+```bash
+# Build image
+docker build -t ai-reviewer https://github.com/briej/ai-reviewer.git#main
+
+# Run analysis on current directory
+docker run -v $(pwd):/code ai-reviewer /code --mode fast
+
+# Generate HTML report
+docker run -v $(pwd):/code ai-reviewer /code --mode fast --format html --output /code/report.html
+
+# With custom config
+docker run -v $(pwd):/code -v $(pwd)/.ai-reviewer.yaml:/app/.ai-reviewer.yaml ai-reviewer /code
+```
+
+---
+
 ## 🎯 Quick Start
 
 ```bash
