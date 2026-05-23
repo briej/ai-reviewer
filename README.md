@@ -168,7 +168,7 @@ jobs:
 ```yaml
 # .pre-commit-config.yaml
 repos:
-  - repo: https://github.com/your-username/ai-reviewer
+  - repo: https://github.com/briej/ai-reviewer
     rev: v1.2
     hooks:
       - id: ai-reviewer
