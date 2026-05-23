@@ -16,7 +16,7 @@
 ## 🚀 Installation
 
 ```bash
-pip install ai-reviewer
+pip install ai-reviewer-cli
 ```
 
 Or from source:
