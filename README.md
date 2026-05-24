@@ -11,6 +11,43 @@
 - 📊 HTML / SARIF / JSON reports
 - 🎯 8 languages supported
 - 🌐 Web interface available
+- 💻 VS Code extension available
+
+---
+
+## 💻 VS Code Extension
+
+Install from [VS Code Marketplace](https://marketplace.visualstudio.com) (coming soon!) or manually:
+
+```bash
+# Install ai-reviewer-cli first
+pip install ai-reviewer-cli
+
+# Build extension
+cd vscode-extension
+npm install
+npm run compile
+
+# Package extension
+npm install -g @vscode/vsce
+vsce package
+
+# Install locally
+code --install-extension ai-reviewer-vscode-1.3.1.vsix
+```
+
+**Features:**
+- 🔍 Scan entire workspace
+- 📄 Scan current file
+- 📊 Beautiful results panel
+- ⚙️ Configurable in settings
+
+**Commands:**
+- `ai-reviewer: Scan Workspace`
+- `ai-reviewer: Scan Current File`
+- `ai-reviewer: Show Results`
+
+See [vscode-extension/README.md](vscode-extension/README.md) for full documentation.
 
 ---
 
