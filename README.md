@@ -344,29 +344,27 @@ repos:
 
 ---
 
-## 🤝 Contributing
+## 📚 Documentation
 
-See [CONTRIBUTING.md](CONTRIBUTING.md)
+Full documentation available at: https://ai-reviewer.readthedocs.io
 
-### Running Tests
+**Contents:**
+- 📖 Installation guide
+- 🛠 Usage examples
+- 💻 VS Code Extension
+- 🌐 Web Interface
+- 🔒 Security rules
+- 🤖 AI providers
+- 📊 API reference
 
-```bash
-pytest tests/
-```
-
-### Building Documentation
+Build locally:
 
 ```bash
 cd docs
 pip install -r requirements.txt
 make html
+open docs/_build/html/index.html
 ```
-
-Open `docs/_build/html/index.html` in your browser.
-
-### API Documentation
-
-Full API reference available at: https://ai-reviewer.readthedocs.io
 
 ---
 
