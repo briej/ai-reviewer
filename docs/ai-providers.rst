@@ -79,21 +79,43 @@ Other Providers
 Comparison
 ----------
 
-+------------+--------------+------------+----------+
-| Provider   | Free Tier    | Speed      | Privacy  |
-+============+==============+============+==========+
-| Ollama     | Unlimited    | Medium     | Local    |
-+------------+--------------+------------+----------+
-| DeepSeek   | 1M tokens    | Fast       | Cloud    |
-+------------+--------------+------------+----------+
-| OpenRouter | Rate limited | Fast       | Cloud    |
-+------------+--------------+------------+----------+
-| Groq       | Rate limited | Very Fast  | Cloud    |
-+------------+--------------+------------+----------+
++------------+--------------+------------+----------+----------------+
+| Provider   | Free Tier    | Speed      | Privacy  | Best For       |
++============+==============+============+==========+================+
+| Ollama     | Unlimited    | Medium     | Local    | Development    |
++------------+--------------+------------+----------+----------------+
+| DeepSeek   | 1M tokens    | Fast       | Cloud    | Production     |
++------------+--------------+------------+----------+----------------+
+| OpenRouter | Rate limited | Fast       | Cloud    | Multi-model    |
++------------+--------------+------------+----------+----------------+
+| Groq       | Rate limited | Very Fast  | Cloud    | Speed          |
++------------+--------------+------------+----------+----------------+
+| Kimi       | Trial        | Medium     | Cloud    | Chinese code   |
++------------+--------------+------------+----------+----------------+
+| Qwen       | Trial        | Medium     | Cloud    | Alibaba eco    |
++------------+--------------+------------+----------+----------------+
 
-Recommendations
----------------
+Recommended Models
+------------------
 
-- **Development**: Use Ollama (free, private)
-- **Production**: Use DeepSeek or Groq (fast, reliable)
-- **Best accuracy**: Use Claude via OpenRouter
+- **Ollama**: ``llama3.1:8b``, ``llama3.2:3b``, ``codellama:7b``
+- **DeepSeek**: ``deepseek-coder``
+- **OpenRouter**: ``anthropic/claude-3.5-sonnet``, ``meta-llama/llama-3.1-70b``
+- **Groq**: ``llama3-70b``, ``mixtral-8x7b``
+
+Environment Variables
+---------------------
+
+Set API keys for cloud providers:
+
+.. code-block:: bash
+
+   # Windows (PowerShell)
+   $env:DEEPSEEK_API_KEY="sk-xxx"
+   $env:OPENROUTER_API_KEY="sk-xxx"
+   $env:GROQ_API_KEY="sk-xxx"
+
+   # Linux/macOS
+   export DEEPSEEK_API_KEY=sk-xxx
+   export OPENROUTER_API_KEY=sk-xxx
+   export GROQ_API_KEY=sk-xxx

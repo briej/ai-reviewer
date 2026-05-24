@@ -104,12 +104,36 @@ Weak TLS
 
 Detects outdated TLS/SSL versions.
 
-Total Rules
------------
+Total Rules: 21
+---------------
 
-- **13** security rules
-- **3** bug detection rules
-- **3** code smell rules
-- **2** performance rules
+**Security (13):**
+- SQL Injection
+- XSS (Cross-Site Scripting)
+- Command Injection
+- Path Traversal
+- XXE (XML External Entity)
+- Insecure Deserialization
+- SSRF (Server-Side Request Forgery)
+- LDAP Injection
+- Weak TLS/SSL
+- Hardcoded Secrets
+- Insecure Imports
+- IDOR (Insecure Direct Object Reference)
+- Security Misconfiguration
 
-**Total: 21 rules**
+**Bugs (3):**
+- Unvalidated Input
+- Type Confusion
+- Resource Leak
+
+**Code Quality (3):**
+- Deep Nesting
+- Too Many Arguments
+- Debug Code
+
+**Performance (2):**
+- Weak Cryptography
+- Inefficient Loop
+
+All rules are configurable via ``config/rules.json``.

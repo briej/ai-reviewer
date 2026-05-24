@@ -1,8 +1,8 @@
 API Reference
 =============
 
-Python API
-----------
+Python API (v1.3.1)
+-------------------
 
 Scanner
 ~~~~~~~
@@ -16,6 +16,14 @@ Analyzer
 ~~~~~~~~
 
 .. automodule:: src.analyzer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+AI Analyzer
+~~~~~~~~~~~
+
+.. automodule:: src.ai_analyzer
    :members:
    :undoc-members:
    :show-inheritance:
@@ -57,6 +65,8 @@ The CLI is built with Click. Main command:
 Using as Library
 ----------------
 
+Fast analysis:
+
 .. code-block:: python
 
    from pathlib import Path
@@ -73,8 +83,7 @@ Using as Library
        for issue in issues:
            print(f"{issue['type']}: {issue['message']}")
 
-AI Analysis
------------
+AI analysis:
 
 .. code-block:: python
 
@@ -87,3 +96,39 @@ AI Analysis
        provider="ollama",
        model="llama3.1:8b"
    )
+
+Web API
+-------
+
+Base URL: ``http://localhost:8000``
+
+Endpoints:
+
+- ``GET /`` - Home page
+- ``POST /api/scan`` - Scan project
+- ``GET /api/results/{scan_id}`` - Get results
+- ``POST /api/upload`` - Upload file
+- ``GET /api/providers`` - List providers
+- ``GET /health`` - Health check
+
+See `Web Interface <web-interface.html>`_ for details.
+
+VS Code API
+-----------
+
+Commands:
+
+- ``ai-reviewer.scanWorkspace``
+- ``ai-reviewer.scanFile``
+- ``ai-reviewer.showResults``
+- ``ai-reviewer.clearResults``
+
+Settings:
+
+- ``ai-reviewer.mode``
+- ``ai-reviewer.provider``
+- ``ai-reviewer.model``
+- ``ai-reviewer.severity``
+- ``ai-reviewer.ignore``
+
+See `VS Code Extension <vscode-extension.html>`_ for details.

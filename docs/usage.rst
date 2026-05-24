@@ -50,8 +50,8 @@ SARIF (GitHub Code Scanning):
 
    ai-review ./project --format sarif --output report.sarif
 
-Options
--------
+All Options
+-----------
 
 .. code-block:: bash
 
@@ -64,9 +64,10 @@ Options
                                     Output format
    -s, --severity [critical|warning|info|all]
                                     Minimum severity
-   -t, --threads                    Number of parallel threads
-   -i, --ignore                     Ignore patterns
+   -t, --threads                    Number of parallel threads (default: 4)
+   -i, --ignore                     Ignore patterns (comma-separated)
    -v, --verbose                    Show detailed progress
+   --help                           Show help message
 
 Examples
 --------
@@ -75,7 +76,7 @@ Scan with custom settings:
 
 .. code-block:: bash
 
-   ai-review ./project --mode fast --threads 8 --ignore __pycache__
+   ai-review ./project --mode fast --threads 8 --ignore __pycache__,.git
 
 Generate HTML report:
 
@@ -88,3 +89,15 @@ CI/CD Integration:
 .. code-block:: bash
 
    ai-review . --mode fast --format sarif --output report.sarif
+
+Single file scan:
+
+.. code-block:: bash
+
+   ai-review file.py --mode fast
+
+Multiple projects:
+
+.. code-block:: bash
+
+   ai-review ./project1 ./project2 --mode fast --format json --output report.json
