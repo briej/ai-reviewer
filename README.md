@@ -380,6 +380,44 @@ repos:
 
 ---
 
+## 🧰 Development
+
+Run tests and linters locally during development.
+
+Install dev dependencies:
+
+```bash
+cd ai-reviewer
+python -m pip install --upgrade pip
+pip install -e .[dev]
+```
+
+Run unit tests:
+
+```bash
+cd ai-reviewer
+pytest -q
+```
+
+Run linter (`ruff`):
+
+```bash
+cd ai-reviewer
+ruff check .
+```
+
+Integration tests that call a local Ollama instance are skipped by default.
+To run them, set the environment variable `RUN_OLLAMA_TESTS=1`:
+
+```bash
+cd ai-reviewer
+RUN_OLLAMA_TESTS=1 pytest test_ollama.py -q
+```
+
+CI note: the workflow runs `ruff` and the test suite in GitHub Actions; ensure API keys are provided in secrets for cloud-mode tests.
+
+---
+
 ## 📊 Example Output
 
 ### Fast Mode

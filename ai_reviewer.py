@@ -7,7 +7,6 @@ Fast. Local. Configurable. Context-aware.
 
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import click
@@ -20,8 +19,7 @@ from rich import box
 from src.scanner import scan_files, read_file
 from src.analyzer import fast_analyze
 from src.context_analyzer import CodeGraph
-from src.ai_analyzer import ai_analyze, cloud_analyze, analyze_with_context
-from src.cloud_client import AIError
+from src.ai_analyzer import ai_analyze, cloud_analyze
 from src.reporter import (
     print_rich_results,
     save_json_report,
@@ -34,14 +32,18 @@ console = Console()
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
+PROVIDER_CHOICES = ("ollama", "openrouter", "deepseek", "kimi", "qwen", "groq")
+
 
 @click.command()
 @click.argument("path", type=click.Path(exists=True))
 @click.option("--mode", "-m", default="fast",
               type=click.Choice(["fast", "ai", "cloud", "context"]),
               help="Mode: fast (rules), ai (Ollama), cloud (API), context (cross-file)")
+
+
 @click.option("--provider", "-p",
-              type=click.Choice(["ollama", "openrouter", "deepseek", "kimi", "qwen", "groq"]),
+              type=click.Choice(PROVIDER_CHOICES),
               help="AI provider (for ai/cloud mode)")
 @click.option("--api-key", "-k", help="API key (for cloud mode)")
 @click.option("--model", "--model-name", "-M",
@@ -192,11 +194,15 @@ def main(path, mode, provider, api_key, model, output, output_format,
     stats.add_column("Value", style="bold")
     stats.add_row("Files analyzed", f"{analyzed}/{len(files)}")
     stats.add_row("Time", f"{elapsed:.2f}s")
-    stats.add_row("Critical", f"[red]{len(results['critical'])}[/red]")
-    stats.add_row("Warning", f"[yellow]{len(results['warning'])}[/yellow]")
-    stats.add_row("Info", f"[blue]{len(results['info'])}[/blue]")
+    crit_count = len(results.get("critical", []))
+    warn_count = len(results.get("warning", []))
+    info_count = len(results.get("info", []))
 
-    score = max(0, round(10.0 - len(results["critical"]) * 1.5 - len(results["warning"]) * 0.5, 1))
+    stats.add_row("Critical", f"[red]{crit_count}[/red]")
+    stats.add_row("Warning", f"[yellow]{warn_count}[/yellow]")
+    stats.add_row("Info", f"[blue]{info_count}[/blue]")
+
+    score = max(0, round(10.0 - crit_count * 1.5 - warn_count * 0.5, 1))
     color = "green" if score >= 8 else "yellow" if score >= 5 else "red"
     stats.add_row("Score", f"[{color}]{score}/10[/{color}]")
     console.print(stats)

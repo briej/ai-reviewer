@@ -1,10 +1,7 @@
-import json
-from unittest.mock import Mock, patch
-from pathlib import Path
-
+from unittest.mock import patch
 import pytest
 
-from src.cloud_client import CloudClient, _ollama_request, _cloud_request, AIError
+from src.cloud_client import CloudClient, _cloud_request, AIError
 
 
 class DummyResponse:
@@ -26,7 +23,8 @@ def test_cloudclient_chat_openrouter_style():
 
     payload = {"choices": [{"message": {"content": '{"issues": []}'}}]}
 
-    with patch("src.cloud_client.requests.post", return_value=DummyResponse(payload)) as mock_post:
+    mock_target = "src.cloud_client.requests.post"
+    with patch(mock_target, return_value=DummyResponse(payload)) as mock_post:
         out = client.chat("hello")
         assert '{"issues": []}' in out
         mock_post.assert_called_once()
@@ -38,7 +36,8 @@ def test_cloudclient_chat_ollama_style():
 
     payload = {"response": '{"issues": []}'}
 
-    with patch("src.cloud_client.requests.post", return_value=DummyResponse(payload)) as mock_post:
+    mock_target = "src.cloud_client.requests.post"
+    with patch(mock_target, return_value=DummyResponse(payload)) as mock_post:
         out = client.chat("hello")
         assert out == '{"issues": []}'
         mock_post.assert_called_once()

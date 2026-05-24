@@ -81,7 +81,11 @@ def _apply_metric_rules(
                         indent_level = len(line) - len(line.lstrip())
                     elif in_func and stripped:
                         current_indent = len(line) - len(line.lstrip())
-                        if current_indent <= indent_level and not stripped.startswith("#"):
+                        cond = (
+                            current_indent <= indent_level
+                            and not stripped.startswith("#")
+                        )
+                        if cond:
                             func_lines = i - func_start
                             if func_lines > threshold:
                                 issues.append({
@@ -118,7 +122,8 @@ def _apply_metric_rules(
                     if match:
                         args = match.group(1)
                         # Count non-empty args
-                        arg_count = len([a.strip() for a in args.split(",") if a.strip() and a.strip() != "self" and a.strip() != "cls"])
+                        arg_list = [a.strip() for a in args.split(",") if a.strip()]
+                        arg_count = sum(1 for a in arg_list if a not in ("self", "cls"))
                         if arg_count > threshold:
                             issues.append({
                                 "severity": rule.get("severity", "info"),
@@ -223,11 +228,13 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                 for i, line in enumerate(lines, 1):
                     try:
                         if re.search(pattern, line, re.IGNORECASE):
+                            default_msg = f"Issue detected by {rule_id}"
+                            message_text = rule.get("message", default_msg)
                             issues.append({
                                 "severity": rule.get("severity", "warning"),
                                 "type": rule_id,
                                 "location": f"{file_path.name}:{i}",
-                                "message": rule.get("message", f"Issue detected by {rule_id}"),
+                                "message": message_text,
                             })
                     except re.error:
                         # Skip invalid regex patterns
@@ -240,18 +247,31 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
     for i, line in enumerate(lines, 1):
         # Weak hashes
         if re.search(r"\b(md5|sha1)\s*\(", line, re.IGNORECASE):
-            if not any(i["type"] == "weak-crypto" for i in issues if i["location"] == f"{file_path.name}:{i}"):
+            loc = f"{file_path.name}:{i}"
+            exists = any(
+                issue.get("location") == loc and issue.get("type") == "weak-crypto"
+                for issue in issues
+            )
+            if not exists:
                 issues.append({
                     "severity": "warning",
                     "type": "weak-crypto",
-                    "location": f"{file_path.name}:{i}",
+                    "location": loc,
                     "message": "Weak hash. Use SHA-256, bcrypt, or Argon2.",
                 })
             
         # JavaScript / TypeScript specific
         if lang in ("javascript", "typescript"):
-            if ("innerHTML" in line or "outerHTML" in line) and not _is_empty_html_assignment(line):
-                if not any(i["type"] == "xss" and "innerHTML" in i["message"] for i in issues):
+            has_html_attr = ("innerHTML" in line or "outerHTML" in line)
+            if has_html_attr and not _is_empty_html_assignment(line):
+                has_innerhtml = any(
+                    (
+                        issue.get("type") == "xss"
+                        and "innerHTML" in issue.get("message", "")
+                    )
+                    for issue in issues
+                )
+                if not has_innerhtml:
                     issues.append({
                         "severity": "warning",
                         "type": "xss",

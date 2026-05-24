@@ -10,7 +10,11 @@ import sys
 import pytest
 
 if os.getenv("RUN_OLLAMA_TESTS") != "1":
-    pytest.skip("Skipping integration test that calls Ollama unless RUN_OLLAMA_TESTS=1", allow_module_level=True)
+    skip_msg = (
+        "Skipping integration test that calls Ollama unless "
+        "RUN_OLLAMA_TESTS=1"
+    )
+    pytest.skip(skip_msg, allow_module_level=True)
 
 sys.path.insert(0, '.')
 
@@ -42,7 +46,10 @@ try:
     if result.get('issues'):
         print("\n=== Issues ===")
         for issue in result['issues'][:5]:
-            print(f"  [{issue.get('severity', 'unknown')}] {issue.get('type')}: {issue.get('message', '')[:80]}")
+            sev = issue.get('severity', 'unknown')
+            typ = issue.get('type')
+            msg = issue.get('message', '')[:80]
+            print(f"  [{sev}] {typ}: {msg}")
 except Exception as e:
     print(f"ERROR: {e}")
     import traceback

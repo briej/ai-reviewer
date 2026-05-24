@@ -11,8 +11,6 @@ from .cloud_client import (
     CloudClient,
     analyze_with_ai,
     _format_prompt,
-    _detect_language,
-    AIError,
 )
 
 CLOUD_AVAILABLE = True
@@ -48,7 +46,7 @@ def ai_analyze(
     console.print(f"[cyan]Running AI analysis on {file_path.name}...[/cyan]")
     
     # Format enhanced prompt with context
-    prompt = _format_prompt(file_path, content, initial_issues, context)
+    # (prompt is built by the client when needed)
     
     try:
         # Try Ollama first (local, free)
@@ -61,7 +59,7 @@ def ai_analyze(
             timeout=120,
         )
         
-        console.print(f"[green]✓ AI analysis complete[/green]")
+        console.print("[green]✓ AI analysis complete[/green]")
         
         # Process AI results
         return _process_ai_results(file_path, result, initial_issues)
@@ -96,7 +94,8 @@ def cloud_analyze(
     # Validate provider name (prevent IDOR)
     VALID_PROVIDERS = {"ollama", "deepseek", "openrouter", "groq", "kimi", "qwen"}
     if provider not in VALID_PROVIDERS:
-        raise ValueError(f"Invalid provider: {provider}. Must be one of: {', '.join(VALID_PROVIDERS)}")
+        allowed = ", ".join(sorted(VALID_PROVIDERS))
+        raise ValueError(f"Invalid provider: {provider}. Must be one of: {allowed}")
     
     if not CLOUD_AVAILABLE:
         return fast_analyze(file_path, content)
@@ -123,9 +122,8 @@ def cloud_analyze(
                 issues = _process_ai_results(file_path, ai_data, initial_issues)
         except json.JSONDecodeError:
             console = __import__("rich.console", fromlist=["Console"]).Console()
-            console.print(
-                f"[yellow]⚠️  Could not parse AI response for {file_path.name}, using fast mode[/yellow]"
-            )
+            msg = "[yellow]⚠️  Could not parse AI response, using fast mode[/yellow]"
+            console.print(msg)
             return fast_analyze(file_path, content)
         
         return issues

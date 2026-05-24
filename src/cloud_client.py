@@ -155,13 +155,19 @@ def _format_prompt(
         for issue in issues[:15]:
             loc = issue.get('location', 'unknown')
             msg = issue.get('message', 'No message')[:80]
-            prompt += f"| {issue.get('severity', 'unknown')} | {issue.get('type', 'unknown')} | {loc} | {msg} |\n"
+            sev = issue.get('severity', 'unknown')
+            typ = issue.get('type', 'unknown')
+            prompt += (
+                "| {sev} | {typ} | {loc} | {msg} |\n".format(
+                    sev=sev, typ=typ, loc=loc, msg=msg
+                )
+            )
     else:
         prompt += "*No issues detected by static analysis.*\n"
     
     # Add context about related files if available
     if context and context.get('related_files'):
-        prompt += f"\n## Related Files in Project\n"
+        prompt += "\n## Related Files in Project\n"
         for rel_file in context['related_files'][:5]:
             prompt += f"- `{rel_file}`\n"
     
@@ -244,7 +250,8 @@ Return **ONLY** a valid JSON object. No markdown, no explanations.
 
 ## Important Rules
 
-1. **Be specific** — Don't say "possible injection", say "SQL injection at line 42 because user input reaches execute() without parameterization"
+1. **Be specific** — Don't say "possible injection".
+    Example: "SQL injection at line 42: user input reaches execute()"
 2. **Consider context** — If input is validated upstream, mark as false positive
 3. **Prioritize** — Critical issues first, focus on real risks not style
 4. **Be actionable** — Every issue must have a clear fix recommendation
@@ -321,7 +328,9 @@ def analyze_with_ai(
 def _ollama_request(prompt: str, model: str, timeout: int) -> Dict[str, Any]:
     """Send request to Ollama."""
     if requests is None:
-        raise AIError("requests library not installed. Install with: pip install requests")
+        msg = "requests library not installed."
+        msg += " Install with: pip install requests"
+        raise AIError(msg)
     
     url = f"{PROVIDERS['ollama']['base_url']}{PROVIDERS['ollama']['chat_endpoint']}"
     
@@ -359,7 +368,9 @@ def _ollama_request(prompt: str, model: str, timeout: int) -> Dict[str, Any]:
             }
     
     except requests.exceptions.ConnectionError:
-        raise AIError("Cannot connect to Ollama. Make sure it's running on localhost:11434")
+        msg = "Cannot connect to Ollama."
+        msg += " Make sure it's running on localhost:11434"
+        raise AIError(msg)
     except requests.exceptions.Timeout:
         raise AIError(f"Request timed out after {timeout}s")
     except Exception as e:
@@ -375,20 +386,24 @@ def _cloud_request(
 ) -> Dict[str, Any]:
     """Send request to cloud AI provider."""
     if requests is None:
-        raise AIError("requests library not installed. Install with: pip install requests")
+        msg = "requests library not installed."
+        msg += " Install with: pip install requests"
+        raise AIError(msg)
     
     config = PROVIDERS[provider]
     api_key = _get_api_key(provider, api_key)
     
     if not api_key:
-        raise AIError(f"No API key for {provider}. Set {provider.upper()}_API_KEY or pass --api-key")
+        msg = f"No API key for {provider}."
+        msg += f" Set {provider.upper()}_API_KEY or pass --api-key"
+        raise AIError(msg)
     
     url = f"{config['base_url']}{config['chat_endpoint']}"
     
-    headers = {
-        "Content-Type": "application/json",
-        config["auth_header"]: f"{config['auth_prefix']}{api_key}",
-    }
+    headers = {"Content-Type": "application/json"}
+    auth_hdr = config.get("auth_header")
+    if auth_hdr:
+        headers[auth_hdr] = f"{config.get('auth_prefix', '')}{api_key}"
     
     # Add OpenRouter-specific headers
     if provider == "openrouter":

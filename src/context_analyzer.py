@@ -2,7 +2,7 @@
 import ast
 import json
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Set, Tuple
+from typing import Dict, List, Any, Set, Tuple
 from collections import defaultdict
 
 
@@ -73,23 +73,33 @@ class CodeGraph:
                         self.edges.append((rel_path, node.module))
             
             # Track functions
-            elif isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                decorators_list = [
+                    self._get_decorator_name(d)
+                    for d in node.decorator_list
+                ]
                 func_info = {
                     "name": node.name,
                     "line": node.lineno,
                     "args": [arg.arg for arg in node.args.args],
-                    "decorators": [self._get_decorator_name(d) for d in node.decorator_list],
+                    "decorators": decorators_list,
                     "calls": self._extract_calls(node),
                 }
                 self.functions[rel_path].append(func_info)
             
             # Track classes
             elif isinstance(node, ast.ClassDef):
+                bases = [self._get_base_name(b) for b in node.bases]
+                methods = [
+                    n.name
+                    for n in node.body
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                ]
                 class_info = {
                     "name": node.name,
                     "line": node.lineno,
-                    "bases": [self._get_base_name(b) for b in node.bases],
-                    "methods": [n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))],
+                    "bases": bases,
+                    "methods": methods,
                 }
                 self.classes[rel_path].append(class_info)
     

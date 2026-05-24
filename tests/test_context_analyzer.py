@@ -39,7 +39,9 @@ def bar(x, y):
 def test_code_graph_detects_project_type():
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
-        (tmp_path / "app.py").write_text("from flask import Flask\napp = Flask(__name__)")
+        (tmp_path / "app.py").write_text(
+            "from flask import Flask\n" "app = Flask(__name__)"
+        )
         
         graph = CodeGraph(tmp_path)
         graph.scan_project()

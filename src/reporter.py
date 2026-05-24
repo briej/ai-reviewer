@@ -1,12 +1,10 @@
 """Report generators for ai-reviewer"""
 import json
 import time
-from pathlib import Path
 from typing import Dict, Any, List
 
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 from rich import box
 
 console = Console()
@@ -14,10 +12,13 @@ console = Console()
 
 def print_rich_results(results: Dict[str, List[Dict[str, Any]]]) -> None:
     """Print results to terminal with Rich formatting."""
-    has_issues = any(results.values())
-    
-    if results["critical"]:
-        console.print(f"\n[bold red]⚠️  CRITICAL ({len(results['critical'])})[/bold red]")
+    critical_count = len(results.get("critical", []))
+    warning_count = len(results.get("warning", []))
+    info_count = len(results.get("info", []))
+    has_issues = (critical_count + warning_count + info_count) > 0
+
+    if critical_count:
+        console.print(f"\n[bold red]⚠️  CRITICAL ({critical_count})[/bold red]")
         table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
         table.add_column("Severity", style="red", width=10)
         table.add_column("Type", style="red", width=20)
@@ -31,8 +32,8 @@ def print_rich_results(results: Dict[str, List[Dict[str, Any]]]) -> None:
             table.add_row("CRITICAL", issue["type"], issue["location"], msg)
         console.print(table)
     
-    if results["warning"]:
-        console.print(f"\n[bold yellow]🔶 WARNING ({len(results['warning'])})[/bold yellow]")
+    if warning_count:
+        console.print(f"\n[bold yellow]🔶 WARNING ({warning_count})[/bold yellow]")
         table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
         table.add_column("Severity", style="yellow", width=10)
         table.add_column("Type", style="yellow", width=20)
@@ -46,8 +47,8 @@ def print_rich_results(results: Dict[str, List[Dict[str, Any]]]) -> None:
             table.add_row("WARNING", issue["type"], issue["location"], msg)
         console.print(table)
     
-    if results["info"]:
-        console.print(f"\n[bold blue]💡 INFO ({len(results['info'])})[/bold blue]")
+    if info_count:
+        console.print(f"\n[bold blue]💡 INFO ({info_count})[/bold blue]")
         table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
         table.add_column("Severity", style="blue", width=10)
         table.add_column("Type", style="blue", width=20)
@@ -65,11 +66,14 @@ def print_rich_results(results: Dict[str, List[Dict[str, Any]]]) -> None:
         console.print("\n[bold green]✅ Clean! No issues found.[/bold green]")
 
 
-def save_json_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
+def save_json_report(
+    results: Dict[str, List[Dict[str, Any]]],
+    output_path: str,
+) -> None:
     """Save report as JSON."""
     # Validate output_path to prevent directory traversal
     if ".." in output_path:
-        raise ValueError(f"Invalid output path: {output_path}. Directory traversal detected.")
+        raise ValueError("Invalid output path: directory traversal detected")
     
     report = {
         "version": "1.2",
@@ -94,41 +98,79 @@ def save_json_report(results: Dict[str, List[Dict[str, Any]]], output_path: str)
         json.dump(report, f, indent=2)
 
 
-def save_html_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
+def save_html_report(
+    results: Dict[str, List[Dict[str, Any]]],
+    output_path: str,
+) -> None:
     """Save report as HTML."""
     # Validate output_path to prevent directory traversal
-    output_path_obj = Path(output_path)
-    if ".." in str(output_path):
-        raise ValueError(f"Invalid output path: {output_path}. Directory traversal detected.")
-    
-    html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>ai-reviewer Report</title>
-    <style>
-        body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background: #0f0f1a; color: #e0e0e0; }}
-        h1 {{ color: #e94560; }}
-        h2 {{ color: #4ecca3; }}
-        .critical {{ background: #3a1010; padding: 12px; margin: 6px 0; border-left: 4px solid #e94560; border-radius: 4px; }}
-        .warning {{ background: #3a3010; padding: 12px; margin: 6px 0; border-left: 4px solid #f4a261; border-radius: 4px; }}
-        .info {{ background: #10303a; padding: 12px; margin: 6px 0; border-left: 4px solid #2a9d8f; border-radius: 4px; }}
-        .location {{ font-family: 'Fira Code', monospace; color: #4ecca3; font-size: 0.9em; }}
-        .message {{ margin-top: 4px; }}
-        .summary {{ background: #1a1a2e; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
-    </style>
-</head>
-<body>
-    <h1>🤖 ai-reviewer Report</h1>
-    <p>Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}</p>
-    
-    <div class="summary">
-        <h2>Summary</h2>
-        <p><strong>Critical:</strong> {len(results['critical'])}</p>
-        <p><strong>Warning:</strong> {len(results['warning'])}</p>
-        <p><strong>Info:</strong> {len(results['info'])}</p>
-    </div>
-"""
+    if ".." in output_path:
+        raise ValueError("Invalid output path: directory traversal detected")
+
+    critical_count = len(results.get("critical", []))
+    warning_count = len(results.get("warning", []))
+    info_count = len(results.get("info", []))
+
+    html = (
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        "    <meta charset=\"utf-8\">\n"
+        "    <title>ai-reviewer Report</title>\n"
+        "    <style>\n"
+        "        body {\n"
+        "            font-family: 'Segoe UI', Arial, sans-serif;\n"
+        "            margin: 40px;\n"
+        "            background: #0f0f1a;\n"
+        "            color: #e0e0e0;\n"
+        "        }\n"
+        "        h1 { color: #e94560; }\n"
+        "        h2 { color: #4ecca3; }\n"
+        "        .critical {\n"
+        "            background: #3a1010;\n"
+        "            padding: 12px;\n"
+        "            margin: 6px 0;\n"
+        "            border-left: 4px solid #e94560;\n"
+        "            border-radius: 4px;\n"
+        "        }\n"
+        "        .warning {\n"
+        "            background: #3a3010;\n"
+        "            padding: 12px;\n"
+        "            margin: 6px 0;\n"
+        "            border-left: 4px solid #f4a261;\n"
+        "            border-radius: 4px;\n"
+        "        }\n"
+        "        .info {\n"
+        "            background: #10303a;\n"
+        "            padding: 12px;\n"
+        "            margin: 6px 0;\n"
+        "            border-left: 4px solid #2a9d8f;\n"
+        "            border-radius: 4px;\n"
+        "        }\n"
+        "        .location {\n"
+        "            font-family: 'Fira Code', monospace;\n"
+        "            color: #4ecca3;\n"
+        "            font-size: 0.9em;\n"
+        "        }\n"
+        "        .message { margin-top: 4px; }\n"
+        "        .summary {\n"
+        "            background: #1a1a2e;\n"
+        "            padding: 20px;\n"
+        "            border-radius: 8px;\n"
+        "            margin-bottom: 20px;\n"
+        "        }\n"
+        "    </style>\n"
+        "</head>\n"
+        "<body>\n"
+        f"    <h1>🤖 ai-reviewer Report</h1>\n"
+        f"    <p>Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}</p>\n"
+        "    <div class=\"summary\">\n"
+        "        <h2>Summary</h2>\n"
+        f"        <p><strong>Critical:</strong> {critical_count}</p>\n"
+        f"        <p><strong>Warning:</strong> {warning_count}</p>\n"
+        f"        <p><strong>Info:</strong> {info_count}</p>\n"
+        "    </div>\n"
+    )
     
     if results["critical"]:
         html += "<h2>Critical Issues</h2>\n"
@@ -155,16 +197,19 @@ def save_html_report(results: Dict[str, List[Dict[str, Any]]], output_path: str)
             </div>\n"""
     
     html += "</body></html>"
-    
+
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
 
 
-def save_sarif_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
+def save_sarif_report(
+    results: Dict[str, List[Dict[str, Any]]],
+    output_path: str,
+) -> None:
     """Save report in SARIF format for GitHub Code Scanning."""
     # Validate output_path to prevent directory traversal
     if ".." in output_path:
-        raise ValueError(f"Invalid output path: {output_path}. Directory traversal detected.")
+        raise ValueError("Invalid output path: directory traversal detected")
     
     # Map our severity to SARIF levels
     severity_map = {
@@ -208,5 +253,6 @@ def save_sarif_report(results: Dict[str, List[Dict[str, Any]]], output_path: str
             })
     
     import json
+
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(sarif, f, indent=2)
