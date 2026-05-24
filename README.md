@@ -10,6 +10,7 @@
 - 🚀 Parallel processing
 - 📊 HTML / SARIF / JSON reports
 - 🎯 8 languages supported
+- 🌐 Web interface available
 
 ---
 
@@ -26,6 +27,37 @@ git clone https://github.com/briej/ai-reviewer.git
 cd ai-reviewer
 pip install -e .
 ```
+
+For web interface:
+
+```bash
+pip install ai-reviewer-cli[web]
+```
+
+---
+
+## 🌐 Web Interface
+
+Run the web interface:
+
+```bash
+# Install dependencies
+pip install ai-reviewer-cli[web]
+
+# Start web server
+python web_app.py
+
+# Or with uvicorn
+uvicorn web_app:app --reload --host 0.0.0.0 --port 8000
+```
+
+Open http://localhost:8000 in your browser.
+
+Features:
+- 🎨 Beautiful UI with dark mode
+- 📊 Real-time scan results
+- 📈 Summary dashboard
+- 📁 File upload support
 
 ---
 
@@ -279,8 +311,41 @@ repos:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
+### Running Tests
+
+```bash
+pytest tests/
+```
+
+### Building Documentation
+
+```bash
+cd docs
+pip install -r requirements.txt
+make html
+```
+
+Open `docs/_build/html/index.html` in your browser.
+
+### API Documentation
+
+Full API reference available at: https://ai-reviewer.readthedocs.io
+
 ---
 
 ## 📜 License
 
 MIT
+PS> cd ai-reviewer; ai-review . --mode ai --provider ollama --model llama3.2-vision:11b --verbose
+#< CLIXML
+┌───────────────────────────────────────────────────────────────┐
+│ 🤖 ai-reviewer — v1.3                                         │
+│ OWASP Top 10 | AI-Powered | Multi-Cloud | Parallel | Rich CLI │
+└───────────────────────────────────────────────────────────────┘
+⠙ Scanning files...
+✓ Files found: 10
+  ✗ ai_reviewer.py: Request timed out after 60s
+  ✓ __init__.py
+
+Выполняется
+Переместить в фоновый режим
