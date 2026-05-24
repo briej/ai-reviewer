@@ -27,11 +27,17 @@ def load_config() -> Dict[str, Any]:
         "threads": 4,
     }
     
+    # Validate home directory to prevent path traversal
+    home_dir = Path.home()
+    if home_dir is None:
+        # Fallback if home is not available
+        home_dir = Path.cwd()
+    
     config_paths = [
         Path(".ai-reviewer.yaml"),
         Path(".ai-reviewer.yml"),
-        Path.home() / ".ai-reviewer.yaml",
-        Path.home() / ".ai-reviewer.yml",
+        home_dir / ".ai-reviewer.yaml",
+        home_dir / ".ai-reviewer.yml",
     ]
     
     for config_path in config_paths:
@@ -39,10 +45,11 @@ def load_config() -> Dict[str, Any]:
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     user_config = yaml.safe_load(f)
-                    if user_config and isinstance(user_config, dict):
+                    # Validate YAML result before updating
+                    if isinstance(user_config, dict):
                         config.update(user_config)
                 break
-            except (yaml.YAMLError, OSError, UnicodeDecodeError):
+            except (yaml.YAMLError, OSError, UnicodeDecodeError, ValueError):
                 continue
     
     return config

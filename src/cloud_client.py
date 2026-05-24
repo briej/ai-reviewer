@@ -122,7 +122,7 @@ def analyze_with_ai(
     provider: str = "ollama",
     model: Optional[str] = None,
     api_key: Optional[str] = None,
-    timeout: int = 60,
+    timeout: int = 120,
 ) -> Dict[str, Any]:
     """Analyze code with AI provider.
     

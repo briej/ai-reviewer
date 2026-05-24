@@ -39,6 +39,11 @@ def cloud_analyze(
     Returns:
         List of issues.
     """
+    # Validate provider name (prevent IDOR)
+    VALID_PROVIDERS = {"ollama", "deepseek", "openrouter", "groq", "kimi", "qwen"}
+    if provider not in VALID_PROVIDERS:
+        raise ValueError(f"Invalid provider: {provider}. Must be one of: {', '.join(VALID_PROVIDERS)}")
+    
     if not CLOUD_AVAILABLE:
         return fast_analyze(file_path, content)
     

@@ -49,6 +49,10 @@ def print_rich_results(results: Dict[str, List[Dict[str, Any]]]) -> None:
 
 def save_json_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
     """Save report as JSON."""
+    # Validate output_path to prevent directory traversal
+    if ".." in output_path:
+        raise ValueError(f"Invalid output path: {output_path}. Directory traversal detected.")
+    
     report = {
         "version": "1.2",
         "tool": "ai-reviewer",
@@ -74,6 +78,11 @@ def save_json_report(results: Dict[str, List[Dict[str, Any]]], output_path: str)
 
 def save_html_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
     """Save report as HTML."""
+    # Validate output_path to prevent directory traversal
+    output_path_obj = Path(output_path)
+    if ".." in str(output_path):
+        raise ValueError(f"Invalid output path: {output_path}. Directory traversal detected.")
+    
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -135,6 +144,10 @@ def save_html_report(results: Dict[str, List[Dict[str, Any]]], output_path: str)
 
 def save_sarif_report(results: Dict[str, List[Dict[str, Any]]], output_path: str) -> None:
     """Save report in SARIF format for GitHub Code Scanning."""
+    # Validate output_path to prevent directory traversal
+    if ".." in output_path:
+        raise ValueError(f"Invalid output path: {output_path}. Directory traversal detected.")
+    
     # Map our severity to SARIF levels
     severity_map = {
         "critical": "error",
