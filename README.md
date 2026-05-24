@@ -29,16 +29,47 @@ pip install -e .
 
 ---
 
+## 🤖 AI Mode
+
+Use AI-powered analysis with Ollama or cloud providers:
+
+```bash
+# Ollama (local, free)
+ai-review ./project --mode ai --provider ollama --model llama3.1
+
+# DeepSeek (cloud, 1M free tokens)
+ai-review ./project --mode cloud --provider deepseek --api-key sk-xxx
+
+# OpenRouter (Anthropic Claude)
+ai-review ./project --mode cloud --provider openrouter --api-key sk-xxx
+
+# Groq (fast inference)
+ai-review ./project --mode cloud --provider groq --api-key sk-xxx
+```
+
+**Supported AI Providers:**
+- **Ollama** - Local, unlimited, free (install separately)
+- **DeepSeek** - 1M free tokens/month
+- **OpenRouter** - Rate limited free tier
+- **Groq** - Rate limited free tier
+- **Kimi** - Trial available
+- **Qwen** - Trial available
+
+---
+
 ## 🐳 Docker
 
 Run without installing anything:
 
 ```bash
 # Build image
-docker build -t ai-reviewer https://github.com/briej/ai-reviewer.git#main
+docker build -t ai-reviewer .
 
 # Run analysis on current directory
 docker run -v $(pwd):/code ai-reviewer /code --mode fast
+
+# AI mode with Ollama (requires Ollama running on host)
+docker run -v $(pwd):/code --add-host host.docker.internal:host-gateway ai-reviewer /code --mode ai --provider ollama --model llama3.1
 
 # Generate HTML report
 docker run -v $(pwd):/code ai-reviewer /code --mode fast --format html --output /code/report.html
@@ -55,7 +86,10 @@ docker run -v $(pwd):/code -v $(pwd)/.ai-reviewer.yaml:/app/.ai-reviewer.yaml ai
 # Fast mode — instant analysis, no AI needed
 ai-review ./my-project
 
-# Cloud mode — AI-powered analysis
+# AI mode — Ollama-powered analysis (local)
+ai-review ./my-project --mode ai --provider ollama --model llama3.1
+
+# Cloud mode — AI-powered analysis (DeepSeek)
 ai-review ./my-project --mode cloud --provider deepseek --api-key sk-xxx
 
 # HTML report
@@ -179,6 +213,13 @@ jobs:
       - uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: report.sarif
+```
+
+**AI-Powered CI/CD:**
+
+```yaml
+- run: pip install ai-reviewer-cli
+- run: ai-review . --mode ai --provider ollama --model llama3.1 --format sarif --output report.sarif
 ```
 
 ---

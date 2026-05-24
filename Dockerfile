@@ -3,12 +3,13 @@
 #   docker build -t ai-reviewer .
 #   docker run -v $(pwd):/code ai-reviewer /code --mode fast
 #   docker run -v $(pwd):/code ai-reviewer /code --mode fast --format html --output /code/report.html
+#   docker run -v $(pwd):/code ai-reviewer /code --mode ai --provider ollama --model llama3.1
 
 FROM python:3.12-slim
 
 LABEL maintainer="briej"
 LABEL description="AI-powered code reviewer with OWASP Top 10 checks"
-LABEL version="1.2.0"
+LABEL version="1.3.0"
 
 # Prevent Python from writing pyc files and buffering stdout
 ENV PYTHONDONTWRITEBYTECODE=1

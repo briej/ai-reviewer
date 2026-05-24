@@ -19,7 +19,7 @@ from rich import box
 
 from src.scanner import scan_files, read_file
 from src.analyzer import fast_analyze
-from src.ai_analyzer import ai_analyze, cloud_analyze
+from src.cloud_client import analyze_with_ai, AIError
 from src.reporter import (
     print_rich_results,
     save_json_report,
@@ -39,11 +39,11 @@ if sys.platform == "win32":
               type=click.Choice(["fast", "ai", "cloud"]),
               help="Mode: fast (rules), ai (Ollama), cloud (API)")
 @click.option("--provider", "-p",
-              type=click.Choice(["openrouter", "deepseek", "kimi", "qwen", "groq"]),
-              help="AI provider (for cloud mode)")
+              type=click.Choice(["ollama", "openrouter", "deepseek", "kimi", "qwen", "groq"]),
+              help="AI provider (for ai/cloud mode)")
 @click.option("--api-key", "-k", help="API key (for cloud mode)")
 @click.option("--model", "--model-name", "-M",
-              help="AI model (e.g., deepseek-coder)")
+              help="AI model (e.g., llama3.1, deepseek-coder)")
 @click.option("--output", "-o", type=click.Path(), help="Report file path")
 @click.option("--format", "-f", "output_format",
               type=click.Choice(["cli", "json", "html", "sarif"]),
@@ -57,7 +57,7 @@ if sys.platform == "win32":
               help="Ignore patterns (e.g., __pycache__, .git)")
 @click.option("--verbose", "-v", is_flag=True,
               help="Show detailed progress")
-@click.version_option(version="1.2.0", prog_name="ai-review")
+@click.version_option(version="1.3.0", prog_name="ai-review")
 def main(path, mode, provider, api_key, model, output, output_format,
          severity, threads, ignore, verbose):
     """ai-reviewer — code review with OWASP Top 10 checks.
@@ -65,23 +65,23 @@ def main(path, mode, provider, api_key, model, output, output_format,
     \b
     Examples:
       ai-review ./project --mode fast
+      ai-review ./project --mode ai --provider ollama --model llama3.1
       ai-review ./project --mode cloud --provider deepseek --api-key sk-xxx
       ai-review ./project --format html --output report.html
       ai-review ./project --threads 8 --verbose
     """
     console.print(Panel.fit(
-        "[bold cyan]🤖 ai-reviewer — v1.2[/bold cyan]\n"
-        "[dim]OWASP Top 10 | Multi-Cloud | Parallel | Rich CLI[/dim]",
+        "[bold cyan]🤖 ai-reviewer — v1.3[/bold cyan]\n"
+        "[dim]OWASP Top 10 | AI-Powered | Multi-Cloud | Parallel | Rich CLI[/dim]",
         border_style="cyan",
     ))
 
     # Validate cloud mode
-    if mode == "cloud":
+    if mode in ("ai", "cloud"):
         if not provider:
-            console.print("[red]Error:[/red] --provider required for cloud mode")
-            sys.exit(1)
-        if not api_key:
-            console.print("[red]Error:[/red] --api-key required for cloud mode")
+            provider = "ollama"  # Default to Ollama for ai mode
+        if mode == "cloud" and not api_key:
+            console.print(f"[red]Error:[/red] --api-key required for {mode} mode")
             sys.exit(1)
 
     # Scan files
@@ -101,6 +101,7 @@ def main(path, mode, provider, api_key, model, output, output_format,
     analyzed = 0
 
     if threads > 1 and mode == "fast":
+        # Parallel mode (fast only)
         with ThreadPoolExecutor(max_workers=threads) as executor:
             futures = {
                 executor.submit(fast_analyze, fp, read_file(fp) or ""): fp
@@ -119,23 +120,50 @@ def main(path, mode, provider, api_key, model, output, output_format,
                     if verbose:
                         console.print(f"  [red]✗[/red] {fp.name}: {exc}")
     else:
+        # Single-threaded or AI mode
         for fp in files:
             content = read_file(fp)
             if content is None:
                 continue
 
-            if mode == "fast":
-                issues = fast_analyze(fp, content)
-            elif mode == "ai":
-                issues = ai_analyze(fp, content)
-            else:
-                issues = cloud_analyze(fp, content, provider, api_key, model)
-
-            for issue in issues:
-                results[issue["severity"]].append(issue)
-            analyzed += 1
-            if verbose:
-                console.print(f"  [green]✓[/green] {fp.name}")
+            try:
+                if mode == "fast":
+                    issues = fast_analyze(fp, content)
+                else:
+                    # AI or cloud mode
+                    initial_issues = fast_analyze(fp, content)
+                    ai_results = analyze_with_ai(
+                        fp, content, initial_issues,
+                        provider=provider,
+                        model=model,
+                        api_key=api_key,
+                    )
+                    
+                    # Convert AI results to issue format
+                    issues = []
+                    for ai_issue in ai_results.get("issues", []):
+                        issues.append({
+                            "severity": ai_issue.get("severity", "warning"),
+                            "type": ai_issue.get("type", "ai-review"),
+                            "location": f"{fp.name}:{ai_issue.get('line', 0)}",
+                            "message": f"{ai_issue.get('message', '')} - {ai_issue.get('recommendation', '')}",
+                        })
+                    
+                    if verbose and ai_results.get("false_positives"):
+                        console.print(f"  [dim]AI removed {len(ai_results['false_positives'])} false positives[/dim]")
+                
+                for issue in issues:
+                    results[issue["severity"]].append(issue)
+                analyzed += 1
+                if verbose:
+                    console.print(f"  [green]✓[/green] {fp.name}")
+                    
+            except AIError as e:
+                console.print(f"  [red]✗[/red] {fp.name}: {e}")
+                continue
+            except Exception as e:
+                if verbose:
+                    console.print(f"  [red]✗[/red] {fp.name}: {e}")
 
     elapsed = time.time() - start_time
 
