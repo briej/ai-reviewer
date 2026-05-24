@@ -1,0 +1,163 @@
+{
+  "name": "ai-reviewer-vscode",
+  "displayName": "ai-reviewer",
+  "description": "AI-powered code reviewer with OWASP Top 10 checks",
+  "version": "1.3.1",
+  "publisher": "briej",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/briej/ai-reviewer"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "code-review",
+    "security",
+    "owasp",
+    "ai",
+    "static-analysis",
+    "vulnerability",
+    "sast"
+  ],
+  "activationEvents": [
+    "onCommand:ai-reviewer.scanWorkspace",
+    "onCommand:ai-reviewer.scanFile"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ai-reviewer.scanWorkspace",
+        "title": "ai-reviewer: Scan Workspace",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ai-reviewer.scanFile",
+        "title": "ai-reviewer: Scan Current File",
+        "icon": "$(search-all)"
+      },
+      {
+        "command": "ai-reviewer.showResults",
+        "title": "ai-reviewer: Show Results",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "ai-reviewer.clearResults",
+        "title": "ai-reviewer: Clear Results",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceLangId in python || resourceLangId in javascript || resourceLangId in typescript",
+          "command": "ai-reviewer.scanFile",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "when": "ai-reviewer.hasResults",
+          "command": "ai-reviewer.clearResults",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ai-reviewer",
+      "properties": {
+        "ai-reviewer.mode": {
+          "type": "string",
+          "default": "fast",
+          "enum": [
+            "fast",
+            "ai",
+            "cloud"
+          ],
+          "enumDescriptions": [
+            "Fast rule-based analysis (offline)",
+            "AI-powered analysis with Ollama",
+            "Cloud AI provider analysis"
+          ],
+          "description": "Analysis mode"
+        },
+        "ai-reviewer.provider": {
+          "type": "string",
+          "default": "ollama",
+          "enum": [
+            "ollama",
+            "deepseek",
+            "openrouter",
+            "groq"
+          ],
+          "description": "AI provider for cloud mode"
+        },
+        "ai-reviewer.model": {
+          "type": "string",
+          "default": "llama3.1:8b",
+          "description": "AI model to use"
+        },
+        "ai-reviewer.severity": {
+          "type": "string",
+          "default": "all",
+          "enum": [
+            "critical",
+            "warning",
+            "info",
+            "all"
+          ],
+          "description": "Minimum severity level to show"
+        },
+        "ai-reviewer.ignore": {
+          "type": "array",
+          "default": [
+            "__pycache__",
+            ".git",
+            "node_modules",
+            ".venv"
+          ],
+          "description": "Patterns to ignore"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ai-reviewer",
+          "title": "ai-reviewer",
+          "icon": "$(search)"
+        }
+      ]
+    },
+    "views": {
+      "ai-reviewer": [
+        {
+          "id": "ai-reviewer.results",
+          "name": "Results",
+          "icon": "$(search)",
+          "contextualTitle": "ai-reviewer"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "typescript": "^5.1.6"
+  }
+}
