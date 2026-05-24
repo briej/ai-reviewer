@@ -174,7 +174,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install ai-reviewer
+      - run: pip install ai-reviewer-cli
       - run: ai-review . --mode fast --format sarif --output report.sarif
       - uses: github/codeql-action/upload-sarif@v3
         with:
