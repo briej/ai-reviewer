@@ -7,6 +7,10 @@ from typing import List, Dict, Any
 
 # Cache for loaded rules
 _RULES_CACHE: Dict[str, Any] = None
+_PYTHON_NESTING_KEYWORDS = (
+    "if ", "elif ", "else:", "for ", "while ", "try:", "except ", "finally:",
+    "with ", "async with ", "match ", "case "
+)
 
 
 def _load_rules() -> Dict[str, Any]:
@@ -77,7 +81,11 @@ def _apply_metric_rules(
                         indent_level = len(line) - len(line.lstrip())
                     elif in_func and stripped:
                         current_indent = len(line) - len(line.lstrip())
-                        if current_indent <= indent_level and not stripped.startswith("#"):
+                        cond = (
+                            current_indent <= indent_level
+                            and not stripped.startswith("#")
+                        )
+                        if cond:
                             func_lines = i - func_start
                             if func_lines > threshold:
                                 issues.append({
@@ -99,18 +107,7 @@ def _apply_metric_rules(
                         })
             
             elif metric == "nesting_depth":
-                max_depth = 0
-                max_line = 0
-                depth = 0
-                for i, line in enumerate(lines, 1):
-                    stripped = line.strip()
-                    if stripped.endswith(":") and not stripped.startswith("#"):
-                        depth += 1
-                        if depth > max_depth:
-                            max_depth = depth
-                            max_line = i
-                    elif stripped and not line.startswith(" ") and not line.startswith("\t"):
-                        depth = 0
+                max_depth, max_line = _max_nesting_depth(lines, lang)
                 if max_depth > threshold:
                     issues.append({
                         "severity": rule.get("severity", "warning"),
@@ -125,7 +122,8 @@ def _apply_metric_rules(
                     if match:
                         args = match.group(1)
                         # Count non-empty args
-                        arg_count = len([a.strip() for a in args.split(",") if a.strip() and a.strip() != "self" and a.strip() != "cls"])
+                        arg_list = [a.strip() for a in args.split(",") if a.strip()]
+                        arg_count = sum(1 for a in arg_list if a not in ("self", "cls"))
                         if arg_count > threshold:
                             issues.append({
                                 "severity": rule.get("severity", "info"),
@@ -133,6 +131,64 @@ def _apply_metric_rules(
                                 "location": f"{file_name}:{i}",
                                 "message": rule.get("message", "Too many args"),
                             })
+
+
+def _max_nesting_depth(lines: List[str], lang: str) -> tuple[int, int]:
+    """Calculate approximate control-flow nesting depth for Python/JS-like files."""
+    if lang == "python":
+        return _max_python_nesting_depth(lines)
+    if lang in ("javascript", "typescript"):
+        return _max_brace_nesting_depth(lines)
+    return 0, 0
+
+
+def _max_python_nesting_depth(lines: List[str]) -> tuple[int, int]:
+    max_depth = 0
+    max_line = 0
+    stack: List[int] = []
+
+    for line_number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        indent = len(line) - len(line.lstrip())
+        while stack and indent <= stack[-1]:
+            stack.pop()
+
+        if stripped.endswith(":") and stripped.startswith(_PYTHON_NESTING_KEYWORDS):
+            stack.append(indent)
+            if len(stack) > max_depth:
+                max_depth = len(stack)
+                max_line = line_number
+
+    return max_depth, max_line
+
+
+def _max_brace_nesting_depth(lines: List[str]) -> tuple[int, int]:
+    max_depth = 0
+    max_line = 0
+    depth = 0
+
+    for line_number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("//"):
+            continue
+
+        depth = max(0, depth - stripped.count("}"))
+        depth += stripped.count("{")
+        if depth > max_depth:
+            max_depth = depth
+            max_line = line_number
+
+    return max_depth, max_line
+
+
+def _is_empty_html_assignment(line: str) -> bool:
+    match = re.search(r"\.(?:innerHTML|outerHTML)\s*=\s*([^;]+)", line)
+    if not match:
+        return False
+    return match.group(1).strip() in ("''", '""', "``")
 
 
 def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
@@ -172,11 +228,13 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                 for i, line in enumerate(lines, 1):
                     try:
                         if re.search(pattern, line, re.IGNORECASE):
+                            default_msg = f"Issue detected by {rule_id}"
+                            message_text = rule.get("message", default_msg)
                             issues.append({
                                 "severity": rule.get("severity", "warning"),
                                 "type": rule_id,
                                 "location": f"{file_path.name}:{i}",
-                                "message": rule.get("message", f"Issue detected by {rule_id}"),
+                                "message": message_text,
                             })
                     except re.error:
                         # Skip invalid regex patterns
@@ -189,18 +247,31 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
     for i, line in enumerate(lines, 1):
         # Weak hashes
         if re.search(r"\b(md5|sha1)\s*\(", line, re.IGNORECASE):
-            if not any(i["type"] == "weak-crypto" for i in issues if i["location"] == f"{file_path.name}:{i}"):
+            loc = f"{file_path.name}:{i}"
+            exists = any(
+                issue.get("location") == loc and issue.get("type") == "weak-crypto"
+                for issue in issues
+            )
+            if not exists:
                 issues.append({
                     "severity": "warning",
                     "type": "weak-crypto",
-                    "location": f"{file_path.name}:{i}",
+                    "location": loc,
                     "message": "Weak hash. Use SHA-256, bcrypt, or Argon2.",
                 })
             
         # JavaScript / TypeScript specific
         if lang in ("javascript", "typescript"):
-            if "innerHTML" in line or "outerHTML" in line:
-                if not any(i["type"] == "xss" and "innerHTML" in i["message"] for i in issues):
+            has_html_attr = ("innerHTML" in line or "outerHTML" in line)
+            if has_html_attr and not _is_empty_html_assignment(line):
+                has_innerhtml = any(
+                    (
+                        issue.get("type") == "xss"
+                        and "innerHTML" in issue.get("message", "")
+                    )
+                    for issue in issues
+                )
+                if not has_innerhtml:
                     issues.append({
                         "severity": "warning",
                         "type": "xss",
@@ -225,7 +296,7 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                 })
         
     # OWASP A05: Security Misconfiguration
-    if "DEBUG = True" in content or "debug=True" in content:
+    if re.search(r"\bDEBUG\s*=\s*True\b|\bdebug\s*=\s*True\b", content):
         if not any(i["type"] == "debug-enabled" for i in issues):
             issues.append({
                 "severity": "critical",

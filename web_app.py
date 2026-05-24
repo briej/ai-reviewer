@@ -1,5 +1,3 @@
-"""Web interface for ai-reviewer using FastAPI"""
-import json
 from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, File, UploadFile, Form
