@@ -4,16 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-reviewer-cli"
-version = "1.3.0"
+version = "1.3.1"
 description = "AI-powered code reviewer with OWASP Top 10 checks"
 readme = "README.md"
 license = {text = "MIT"}
+requires-python = ">=3.9"
 authors = [
-    {name = "briej", email = "rikutoyoshimura3@gmail.com"}
+    {name = "briej"}
 ]
-keywords = ["code-review", "security", "owasp", "static-analysis", "cli", "ai"]
+keywords = ["code-review", "security", "owasp", "ai", "static-analysis"]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -21,15 +23,17 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Security",
     "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Security",
 ]
-requires-python = ">=3.9"
 dependencies = [
     "click>=8.1.0",
     "requests>=2.31.0",
     "rich>=13.0.0",
     "pyyaml>=6.0.2",
+    "pygments>=2.16.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -39,10 +43,10 @@ web = [
     "jinja2>=3.1.0",
 ]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "build>=1.0.0",
-    "twine>=4.0.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "flake8>=6.1.0",
 ]
 
 [project.scripts]
