@@ -9,6 +9,8 @@ AI-powered code reviewer with OWASP Top 10 checks. Fast. Local. Configurable.
 
    installation
    usage
+   vscode-extension
+   web-interface
    security-rules
    ai-providers
    api
@@ -22,6 +24,8 @@ Features
 - 🚀 Parallel processing
 - 📊 HTML / SARIF / JSON reports
 - 🎯 8+ languages supported
+- 💻 VS Code extension
+- 🌐 Web interface
 
 Quick Start
 -----------
