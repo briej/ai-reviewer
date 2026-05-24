@@ -48,5 +48,12 @@ htmlcov/
 # Reports
 reports/
 *.md.bak
+
+# IDE
 .vscode/
-__pycache__/
+.idea/
+
+# Misc
+assets/
+hooks/
+static/
