@@ -34,6 +34,69 @@
       "message": "random is not cryptographically secure. Use secrets.",
       "example": "import secrets\ntoken = secrets.token_hex(32)",
       "languages": ["python"]
+    },
+    "csrf-missing": {
+      "pattern": "@app\\.route.*methods.*=.*\\[.*'POST'.*\\].*\\n.*def.*\\(request",
+      "severity": "warning",
+      "message": "POST endpoint without CSRF protection.",
+      "example": "@csrf_protect\ndef handle_form(request):",
+      "languages": ["python"]
+    },
+    "path-traversal": {
+      "pattern": "open\\([^,]*\\+|open\\(.*request|open\\(.*input",
+      "severity": "critical",
+      "message": "Potential path traversal vulnerability. Validate user input.",
+      "example": "import os\nsafe_path = os.path.abspath('/safe/dir')\nif not safe_path.startswith('/safe/dir'):\n    raise ValueError('Invalid path')",
+      "languages": ["python"]
+    },
+    "xxe-dangerous": {
+      "pattern": "etree\\.parse|ElementTree\\.parse|xml\\.parse|xml.etree",
+      "severity": "critical",
+      "message": "XXE vulnerability — use defusedxml instead.",
+      "example": "from defusedxml import ElementTree\nElementTree.parse(source)",
+      "languages": ["python"]
+    },
+    "insecure-deserialization": {
+      "pattern": "pickle\\.loads?|yaml\\.load|marshal\\.loads?",
+      "severity": "critical",
+      "message": "Insecure deserialization. Avoid pickle/yaml.load with untrusted data.",
+      "example": "import json\ndata = json.loads(user_input)",
+      "languages": ["python"]
+    },
+    "ldap-injection": {
+      "pattern": "ldap\\.search.*\\+",
+      "severity": "warning",
+      "message": "Potential LDAP injection. Escape user input.",
+      "example": "from ldap.filter import filter_format\nquery = filter_format('(uid=%s)', [username])",
+      "languages": ["python"]
+    },
+    "weak-tls": {
+      "pattern": "PROTOCOL_TLSv1[^_]|PROTOCOL_SSLv",
+      "severity": "warning",
+      "message": "Weak TLS/SSL version. Use TLS 1.2 or higher.",
+      "example": "context = ssl.create_default_context()\ncontext.minimum_version = ssl.TLSVersion.TLSv1_2",
+      "languages": ["python"]
+    },
+    "ssrf-dangerous": {
+      "pattern": "requests\\.(get|post)\\(.*input|requests\\.(get|post)\\(.*request",
+      "severity": "warning",
+      "message": "Potential SSRF — validate URLs before requesting.",
+      "example": "from urllib.parse import urlparse\nparsed = urlparse(user_url)\nif parsed.scheme not in ('http', 'https'):\n    raise ValueError('Invalid URL')",
+      "languages": ["python"]
+    },
+    "command-injection": {
+      "pattern": "shell=True.*\\+|subprocess.*\\+.*shell",
+      "severity": "critical",
+      "message": "Command injection via shell=True with string concatenation.",
+      "example": "subprocess.run(['ls', '-l', user_path], shell=False)",
+      "languages": ["python"]
+    },
+    "xpath-injection": {
+      "pattern": "xpath.*\\+",
+      "severity": "warning",
+      "message": "Potential XPath injection. Use parameterized queries.",
+      "example": "from lxml import etree\nresult = tree.xpath('//user[@id=$id]', id=user_id)",
+      "languages": ["python"]
     }
   },
   "bugs": {
