@@ -14,37 +14,54 @@ console = Console()
 
 def print_rich_results(results: Dict[str, List[Dict[str, Any]]]) -> None:
     """Print results to terminal with Rich formatting."""
+    has_issues = any(results.values())
+    
     if results["critical"]:
         console.print(f"\n[bold red]⚠️  CRITICAL ({len(results['critical'])})[/bold red]")
-        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+        table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
+        table.add_column("Severity", style="red", width=10)
         table.add_column("Type", style="red", width=20)
         table.add_column("Location", style="dim cyan")
         table.add_column("Message", style="white")
         for issue in results["critical"]:
-            table.add_row(issue["type"], issue["location"], issue["message"])
+            msg = issue.get("message", "")
+            rec = issue.get("recommendation", "")
+            if rec:
+                msg = f"{msg}\n[dim]→ {rec}[/dim]"
+            table.add_row("CRITICAL", issue["type"], issue["location"], msg)
         console.print(table)
     
     if results["warning"]:
         console.print(f"\n[bold yellow]🔶 WARNING ({len(results['warning'])})[/bold yellow]")
-        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+        table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
+        table.add_column("Severity", style="yellow", width=10)
         table.add_column("Type", style="yellow", width=20)
         table.add_column("Location", style="dim cyan")
         table.add_column("Message", style="white")
         for issue in results["warning"]:
-            table.add_row(issue["type"], issue["location"], issue["message"])
+            msg = issue.get("message", "")
+            rec = issue.get("recommendation", "")
+            if rec:
+                msg = f"{msg}\n[dim]→ {rec}[/dim]"
+            table.add_row("WARNING", issue["type"], issue["location"], msg)
         console.print(table)
     
     if results["info"]:
         console.print(f"\n[bold blue]💡 INFO ({len(results['info'])})[/bold blue]")
-        table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+        table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
+        table.add_column("Severity", style="blue", width=10)
         table.add_column("Type", style="blue", width=20)
         table.add_column("Location", style="dim cyan")
         table.add_column("Message", style="white")
         for issue in results["info"]:
-            table.add_row(issue["type"], issue["location"], issue["message"])
+            msg = issue.get("message", "")
+            rec = issue.get("recommendation", "")
+            if rec:
+                msg = f"{msg}\n[dim]→ {rec}[/dim]"
+            table.add_row("INFO", issue["type"], issue["location"], msg)
         console.print(table)
     
-    if not any(results.values()):
+    if not has_issues:
         console.print("\n[bold green]✅ Clean! No issues found.[/bold green]")
 
 

@@ -47,6 +47,59 @@ class AIError(Exception):
     pass
 
 
+class CloudClient:
+    """Client for cloud AI providers."""
+    
+    def __init__(self, provider: str, api_key: str, model: str = ""):
+        if provider not in PROVIDERS:
+            raise ValueError(f"Invalid provider: {provider}")
+        self.provider = provider
+        self.api_key = api_key
+        self.model = model or PROVIDERS[provider]["default_model"]
+        self.config = PROVIDERS[provider]
+    
+    def chat(self, prompt: str, timeout: int = 120) -> str:
+        """Send chat request to cloud provider."""
+        if requests is None:
+            raise AIError("requests library not installed")
+        
+        url = f"{self.config['base_url']}{self.config['chat_endpoint']}"
+        headers = {"Content-Type": "application/json"}
+
+        # Add auth header only if provider requires it
+        auth_header = self.config.get("auth_header")
+        auth_prefix = self.config.get("auth_prefix", "")
+        if auth_header:
+            if not self.api_key:
+                raise AIError(f"No API key provided for provider {self.provider}")
+            headers[auth_header] = f"{auth_prefix}{self.api_key}"
+
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 2048,
+        }
+
+        response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+        response.raise_for_status()
+
+        result = response.json()
+
+        # Return a string payload for downstream parsers. Support common shapes.
+        if isinstance(result, dict):
+            # OpenAI-like response
+            try:
+                return result["choices"][0]["message"]["content"]
+            except Exception:
+                # Ollama-like response
+                if "response" in result:
+                    return result.get("response", "")
+                # Fallback: return serialized JSON
+                return json.dumps(result)
+        return str(result)
+
+
 def _get_api_key(provider: str, api_key: Optional[str] = None) -> Optional[str]:
     """Get API key from parameter or environment variable."""
     if api_key:
@@ -67,52 +120,165 @@ def _get_api_key(provider: str, api_key: Optional[str] = None) -> Optional[str]:
     return None
 
 
-def _format_prompt(file_path: Path, content: str, issues: List[Dict[str, Any]]) -> str:
-    """Format code and issues for AI analysis."""
-    prompt = f"""Analyze the following code for security vulnerabilities and code quality issues.
+def _format_prompt(
+    file_path: Path,
+    content: str,
+    issues: List[Dict[str, Any]],
+    context: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Format code and issues for AI analysis with context awareness."""
+    lang = _detect_language(file_path)
+    
+    prompt = f"""# AI Code Review — Context-Aware Analysis
 
-**File:** {file_path.name}
+**File:** `{file_path.name}` ({file_path.suffix.lstrip('.') or 'unknown'})
+**Lines:** {len(content.splitlines())}
+**Context:** {context.get('project_type', 'unknown') if context else 'single file'}
 
-**Code:**
-```{file_path.suffix.lstrip('.')}
-{content}
+---
+
+## Code to Review
+
+```{lang}
+{content[:12000]}
 ```
 
-**Preliminary findings (from static analysis):**
+---
+
+## Static Analysis Findings (Preliminary)
+
 """
     
     if issues:
-        for issue in issues[:10]:  # Limit to top 10
-            prompt += f"- {issue.get('type', 'unknown')}: {issue.get('message', 'No message')} at line {issue.get('location', 'unknown')}\n"
+        prompt += "| Severity | Type | Location | Message |\n"
+        prompt += "|----------|------|----------|---------|\n"
+        for issue in issues[:15]:
+            loc = issue.get('location', 'unknown')
+            msg = issue.get('message', 'No message')[:80]
+            prompt += f"| {issue.get('severity', 'unknown')} | {issue.get('type', 'unknown')} | {loc} | {msg} |\n"
     else:
-        prompt += "No issues detected by static analysis.\n"
+        prompt += "*No issues detected by static analysis.*\n"
+    
+    # Add context about related files if available
+    if context and context.get('related_files'):
+        prompt += f"\n## Related Files in Project\n"
+        for rel_file in context['related_files'][:5]:
+            prompt += f"- `{rel_file}`\n"
     
     prompt += """
-**Task:**
-1. Review the code for security vulnerabilities (OWASP Top 10)
-2. Identify false positives in the preliminary findings
-3. Find additional issues that static analysis missed
-4. Provide specific line numbers and recommendations
+---
 
-**Output format (JSON only):**
+## Analysis Task
+
+Perform a **context-aware security and quality review**. Think step by step:
+
+### Step 1: Understand the Code
+- What is this file's purpose in the project?
+- What are the security boundaries (user input, external APIs, etc.)?
+- What data flows through this code?
+
+### Step 2: Security Analysis (OWASP Top 10 Focus)
+- **Injection**: SQL, NoSQL, OS command, LDAP, XPath
+- **Authentication**: Session handling, token validation, password storage
+- **Sensitive Data**: Encryption, secrets management, logging
+- **XXE**: XML parsing with external entities
+- **Broken Access Control**: Authorization checks, role-based access
+- **Security Misconfiguration**: Debug modes, default credentials, verbose errors
+- **Vulnerable Components**: Known CVEs in dependencies
+- **Data Integrity**: Input validation, output encoding
+- **Logging**: Security event logging, error handling
+
+### Step 3: Quality & Best Practices
+- Code readability and maintainability
+- Error handling robustness
+- Performance anti-patterns
+- Testing coverage gaps
+
+### Step 4: False Positive Detection
+Review each static analysis finding:
+- Is this actually a vulnerability in THIS context?
+- Is the input properly validated/sanitized elsewhere?
+- Is this a known safe pattern?
+
+---
+
+## Output Format (STRICT JSON ONLY)
+
+Return **ONLY** a valid JSON object. No markdown, no explanations.
+
+```json
 {
-    "issues": [
-        {
-            "severity": "critical|warning|info",
-            "type": "issue-type",
-            "line": 123,
-            "message": "Description",
-            "recommendation": "How to fix"
-        }
-    ],
-    "false_positives": ["list of incorrect findings"],
-    "summary": "Brief summary of findings"
+  "review": {
+    "summary": "One-sentence overall assessment",
+    "risk_level": "low|medium|high|critical",
+    "confidence": 0.0-1.0
+  },
+  "issues": [
+    {
+      "severity": "critical|warning|info",
+      "type": "category-subcategory",
+      "line": <line_number>,
+      "end_line": <optional_end_line>,
+      "message": "Clear, specific description",
+      "evidence": "Code snippet or pattern that triggered this",
+      "recommendation": "Actionable fix with code example",
+      "cwe": "CWE-XXXX (optional)",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "false_positives": [
+    {
+      "original_type": "type from static analysis",
+      "line": <line_number>,
+      "reason": "Why this is not actually a problem"
+    }
+  ],
+  "suggestions": [
+    "General improvement suggestion 1",
+    "General improvement suggestion 2"
+  ]
 }
+```
 
-Respond with valid JSON only.
+---
+
+## Important Rules
+
+1. **Be specific** — Don't say "possible injection", say "SQL injection at line 42 because user input reaches execute() without parameterization"
+2. **Consider context** — If input is validated upstream, mark as false positive
+3. **Prioritize** — Critical issues first, focus on real risks not style
+4. **Be actionable** — Every issue must have a clear fix recommendation
+5. **No hallucinations** — Only report what you see in the code
+
+Respond with JSON ONLY.
 """
     
     return prompt
+
+
+def _detect_language(file_path: Path) -> str:
+    """Detect programming language from file extension."""
+    ext_map = {
+        ".py": "python",
+        ".js": "javascript",
+        ".jsx": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".java": "java",
+        ".go": "go",
+        ".rs": "rust",
+        ".c": "c",
+        ".cpp": "cpp",
+        ".h": "c",
+        ".hpp": "cpp",
+        ".sql": "sql",
+        ".rb": "ruby",
+        ".php": "php",
+        ".cs": "csharp",
+        ".swift": "swift",
+        ".kt": "kotlin",
+    }
+    return ext_map.get(file_path.suffix.lower(), "text")
 
 
 def analyze_with_ai(

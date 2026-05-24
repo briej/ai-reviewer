@@ -7,6 +7,10 @@ from typing import List, Dict, Any
 
 # Cache for loaded rules
 _RULES_CACHE: Dict[str, Any] = None
+_PYTHON_NESTING_KEYWORDS = (
+    "if ", "elif ", "else:", "for ", "while ", "try:", "except ", "finally:",
+    "with ", "async with ", "match ", "case "
+)
 
 
 def _load_rules() -> Dict[str, Any]:
@@ -99,18 +103,7 @@ def _apply_metric_rules(
                         })
             
             elif metric == "nesting_depth":
-                max_depth = 0
-                max_line = 0
-                depth = 0
-                for i, line in enumerate(lines, 1):
-                    stripped = line.strip()
-                    if stripped.endswith(":") and not stripped.startswith("#"):
-                        depth += 1
-                        if depth > max_depth:
-                            max_depth = depth
-                            max_line = i
-                    elif stripped and not line.startswith(" ") and not line.startswith("\t"):
-                        depth = 0
+                max_depth, max_line = _max_nesting_depth(lines, lang)
                 if max_depth > threshold:
                     issues.append({
                         "severity": rule.get("severity", "warning"),
@@ -133,6 +126,64 @@ def _apply_metric_rules(
                                 "location": f"{file_name}:{i}",
                                 "message": rule.get("message", "Too many args"),
                             })
+
+
+def _max_nesting_depth(lines: List[str], lang: str) -> tuple[int, int]:
+    """Calculate approximate control-flow nesting depth for Python/JS-like files."""
+    if lang == "python":
+        return _max_python_nesting_depth(lines)
+    if lang in ("javascript", "typescript"):
+        return _max_brace_nesting_depth(lines)
+    return 0, 0
+
+
+def _max_python_nesting_depth(lines: List[str]) -> tuple[int, int]:
+    max_depth = 0
+    max_line = 0
+    stack: List[int] = []
+
+    for line_number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        indent = len(line) - len(line.lstrip())
+        while stack and indent <= stack[-1]:
+            stack.pop()
+
+        if stripped.endswith(":") and stripped.startswith(_PYTHON_NESTING_KEYWORDS):
+            stack.append(indent)
+            if len(stack) > max_depth:
+                max_depth = len(stack)
+                max_line = line_number
+
+    return max_depth, max_line
+
+
+def _max_brace_nesting_depth(lines: List[str]) -> tuple[int, int]:
+    max_depth = 0
+    max_line = 0
+    depth = 0
+
+    for line_number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("//"):
+            continue
+
+        depth = max(0, depth - stripped.count("}"))
+        depth += stripped.count("{")
+        if depth > max_depth:
+            max_depth = depth
+            max_line = line_number
+
+    return max_depth, max_line
+
+
+def _is_empty_html_assignment(line: str) -> bool:
+    match = re.search(r"\.(?:innerHTML|outerHTML)\s*=\s*([^;]+)", line)
+    if not match:
+        return False
+    return match.group(1).strip() in ("''", '""', "``")
 
 
 def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
@@ -199,7 +250,7 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
             
         # JavaScript / TypeScript specific
         if lang in ("javascript", "typescript"):
-            if "innerHTML" in line or "outerHTML" in line:
+            if ("innerHTML" in line or "outerHTML" in line) and not _is_empty_html_assignment(line):
                 if not any(i["type"] == "xss" and "innerHTML" in i["message"] for i in issues):
                     issues.append({
                         "severity": "warning",
@@ -225,7 +276,7 @@ def fast_analyze(file_path: Path, content: str) -> List[Dict[str, Any]]:
                 })
         
     # OWASP A05: Security Misconfiguration
-    if "DEBUG = True" in content or "debug=True" in content:
+    if re.search(r"\bDEBUG\s*=\s*True\b|\bdebug\s*=\s*True\b", content):
         if not any(i["type"] == "debug-enabled" for i in issues):
             issues.append({
                 "severity": "critical",

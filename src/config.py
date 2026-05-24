@@ -15,7 +15,8 @@ def load_config() -> Dict[str, Any]:
     config = {
         "ignore": [
             "__pycache__", ".git", "node_modules", 
-            ".venv", "venv", "dist", "build"
+            ".venv", "venv", "dist", "build", "out",
+            "coverage", ".pytest_cache", "tests"
         ],
         "languages": {
             ".py": "python", ".js": "javascript", ".ts": "typescript",

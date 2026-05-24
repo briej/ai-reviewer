@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 interface Issue {
@@ -17,10 +19,9 @@ interface ScanResults {
 
 let resultsPanel: vscode.WebviewPanel | undefined = undefined;
 let scanResults: ScanResults = { critical: [], warning: [], info: [] };
+let resultsTreeProvider: ResultsTreeProvider | undefined = undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('ai-reviewer extension is now active!');
-
     // Register commands
     const scanWorkspaceDisposable = vscode.commands.registerCommand(
         'ai-reviewer.scanWorkspace',
@@ -50,12 +51,8 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Create results panel
-    const resultsTreeProvider = new ResultsTreeProvider();
+    resultsTreeProvider = new ResultsTreeProvider();
     vscode.window.registerTreeDataProvider('ai-reviewer.results', resultsTreeProvider);
-}
-
-function getExtensionPath(): string {
-    return vscode.extensions.getExtension('briej.ai-reviewer-vscode')?.extensionPath || '';
 }
 
 async function scanWorkspace() {
@@ -80,9 +77,12 @@ async function scanActiveFile() {
 }
 
 async function runScan(targetPath: string) {
-    const mode = vscode.workspace.getConfiguration('ai-reviewer').get('mode') || 'fast';
-    const provider = vscode.workspace.getConfiguration('ai-reviewer').get('provider') || 'ollama';
-    const model = vscode.workspace.getConfiguration('ai-reviewer').get('model') || 'llama3.1:8b';
+    const config = vscode.workspace.getConfiguration('ai-reviewer');
+    const mode = config.get<string>('mode', 'fast');
+    const provider = config.get<string>('provider', 'ollama');
+    const model = config.get<string>('model', 'llama3.1:8b');
+    const severity = config.get<string>('severity', 'all');
+    const ignore = config.get<string[]>('ignore', []);
 
     const statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left,
@@ -90,9 +90,10 @@ async function runScan(targetPath: string) {
     );
     statusBarItem.text = '$(sync~spin) ai-reviewer: Scanning...';
     statusBarItem.show();
+    const outputPath = path.join(os.tmpdir(), `ai-reviewer-${Date.now()}.json`);
 
     try {
-        let args = [targetPath, '--mode', mode];
+        const args = [targetPath, '--mode', mode, '--format', 'json', '--output', outputPath, '--severity', severity];
         
         if (mode === 'ai') {
             args.push('--provider', provider, '--model', model);
@@ -100,19 +101,18 @@ async function runScan(targetPath: string) {
             args.push('--provider', provider);
         }
 
-        args.push('--format', 'json');
-
-        const cmd = `ai-review ${args.join(' ')}`;
+        ignore.forEach(pattern => args.push('--ignore', pattern));
         
-        const result = await executeCommand(cmd);
+        const result = await executeCommand('ai-review', args);
         
-        if (result.error) {
-            vscode.window.showErrorMessage(`Scan failed: ${result.error}`);
+        if (result.error && !fs.existsSync(outputPath)) {
+            const message = result.stderr.trim() || result.error.message;
+            vscode.window.showErrorMessage(`Scan failed: ${message}`);
             statusBarItem.dispose();
             return;
         }
 
-        const jsonOutput = result.stdout;
+        const jsonOutput = await fs.promises.readFile(outputPath, 'utf8');
         const parsedResults = JSON.parse(jsonOutput);
         
         // Convert to our format
@@ -121,14 +121,17 @@ async function runScan(targetPath: string) {
             warning: parsedResults.issues?.filter((i: Issue) => i.severity === 'warning') || [],
             info: parsedResults.issues?.filter((i: Issue) => i.severity === 'info') || []
         };
+        resultsTreeProvider?.refresh();
 
         const totalIssues = scanResults.critical.length + scanResults.warning.length + scanResults.info.length;
         
         vscode.window.showInformationMessage(
-            `ai-reviewer: Found ${totalIssues} issues (${scanResults.critical} critical, ${scanResults.warning} warning, ${scanResults.info} info)`
+            `ai-reviewer: Found ${totalIssues} issues (${scanResults.critical.length} critical, ${scanResults.warning.length} warning, ${scanResults.info.length} info)`
         );
 
-        statusBarItem.text = `$(check) ai-reviewer: ${totalIssues} issues`;
+        statusBarItem.text = totalIssues > 0
+            ? `$(warning) ai-reviewer: ${totalIssues} issues`
+            : '$(check) ai-reviewer: clean';
         statusBarItem.command = 'ai-reviewer.showResults';
 
         showResults();
@@ -136,37 +139,18 @@ async function runScan(targetPath: string) {
     } catch (error) {
         vscode.window.showErrorMessage(`Scan error: ${error}`);
     } finally {
+        fs.promises.unlink(outputPath).catch(() => undefined);
         setTimeout(() => statusBarItem.dispose(), 3000);
     }
 }
 
-function executeCommand(cmd: string): Promise<{ stdout: string; stderr: string; error?: Error }> {
+function executeCommand(command: string, args: string[]): Promise<{ stdout: string; stderr: string; error?: Error }> {
     return new Promise((resolve) => {
-        const process = child_process.exec(cmd, {
-            maxBuffer: 1024 * 1024 * 10 // 10MB buffer
-        });
-
-        let stdout = '';
-        let stderr = '';
-
-        process.stdout?.on('data', (data) => {
-            stdout += data;
-        });
-
-        process.stderr?.on('data', (data) => {
-            stderr += data;
-        });
-
-        process.on('close', (code) => {
-            if (code === 0 || stdout) {
-                resolve({ stdout, stderr });
-            } else {
-                resolve({ stdout, stderr, error: new Error(stderr) });
-            }
-        });
-
-        process.on('error', (error) => {
-            resolve({ stdout: '', stderr: '', error });
+        child_process.execFile(command, args, {
+            maxBuffer: 1024 * 1024 * 10,
+            windowsHide: true
+        }, (error, stdout, stderr) => {
+            resolve({ stdout, stderr, error: error || undefined });
         });
     });
 }
@@ -194,6 +178,7 @@ function showResults() {
 
 function clearResults() {
     scanResults = { critical: [], warning: [], info: [] };
+    resultsTreeProvider?.refresh();
     vscode.window.showInformationMessage('ai-reviewer: Results cleared');
     
     if (resultsPanel) {
@@ -203,6 +188,9 @@ function clearResults() {
 
 function getWebviewContent(results: ScanResults): string {
     const totalIssues = results.critical.length + results.warning.length + results.info.length;
+    const score = Math.max(0, Math.round((10 - results.critical.length * 1.5 - results.warning.length * 0.5) * 10) / 10);
+    const statusClass = results.critical.length > 0 ? 'critical' : results.warning.length > 0 ? 'warning' : 'clean';
+    const statusText = results.critical.length > 0 ? 'Action required' : results.warning.length > 0 ? 'Review recommended' : 'Clean';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -211,125 +199,378 @@ function getWebviewContent(results: ScanResults): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ai-reviewer Results</title>
     <style>
+        :root {
+            --surface: var(--vscode-sideBar-background);
+            --surface-soft: var(--vscode-editorWidget-background);
+            --border: var(--vscode-panel-border);
+            --muted: var(--vscode-descriptionForeground);
+            --critical: #e94560;
+            --warning: #f4a261;
+            --info: #2a9d8f;
+            --clean: #4ecca3;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: var(--vscode-font-family);
             color: var(--vscode-foreground);
             background: var(--vscode-editor-background);
-            padding: 20px;
+            padding: 0;
+            margin: 0;
+            line-height: 1.45;
         }
-        h1 { color: var(--vscode-descriptionForeground); }
-        .summary {
+
+        .page {
+            width: min(1120px, 100%);
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .hero {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 20px;
+            align-items: center;
+            padding: 22px;
+            margin-bottom: 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
         }
-        .card {
-            background: var(--vscode-sideBar-background);
-            padding: 15px;
-            border-radius: 6px;
-            border-left: 4px solid;
-        }
-        .card.critical { border-left-color: #e94560; }
-        .card.warning { border-left-color: #f4a261; }
-        .card.info { border-left-color: #2a9d8f; }
-        .card .number {
-            font-size: 2em;
-            font-weight: bold;
-        }
-        .card.critical .number { color: #e94560; }
-        .card.warning .number { color: #f4a261; }
-        .card.info .number { color: #2a9d8f; }
-        .issue {
-            background: var(--vscode-sideBar-background);
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 4px;
-            border-left: 3px solid;
-        }
-        .issue.critical { border-left-color: #e94560; }
-        .issue.warning { border-left-color: #f4a261; }
-        .issue.info { border-left-color: #2a9d8f; }
-        .issue-header {
-            display: flex;
-            justify-content: space-between;
+
+        .eyebrow {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0;
+            text-transform: uppercase;
             margin-bottom: 6px;
         }
+
+        h1 {
+            color: var(--vscode-foreground);
+            font-size: 28px;
+            line-height: 1.1;
+            font-weight: 700;
+            letter-spacing: 0;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            margin: 8px 0 0;
+            max-width: 640px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 144px;
+            min-height: 36px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-weight: 700;
+            border: 1px solid;
+            white-space: nowrap;
+        }
+
+        .status-pill.critical {
+            color: var(--critical);
+            border-color: rgba(233, 69, 96, 0.55);
+            background: rgba(233, 69, 96, 0.13);
+        }
+
+        .status-pill.warning {
+            color: var(--warning);
+            border-color: rgba(244, 162, 97, 0.55);
+            background: rgba(244, 162, 97, 0.13);
+        }
+
+        .status-pill.clean {
+            color: var(--clean);
+            border-color: rgba(78, 204, 163, 0.55);
+            background: rgba(78, 204, 163, 0.13);
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 22px;
+        }
+
+        .card {
+            min-height: 112px;
+            background: var(--surface);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--muted);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card.critical { border-top-color: var(--critical); }
+        .card.warning { border-top-color: var(--warning); }
+        .card.info { border-top-color: var(--info); }
+        .card.score { border-top-color: var(--clean); }
+
+        .card-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .number {
+            font-size: 34px;
+            line-height: 1;
+            font-weight: 800;
+            margin-top: 18px;
+            letter-spacing: 0;
+        }
+
+        .card.critical .number { color: var(--critical); }
+        .card.warning .number { color: var(--warning); }
+        .card.info .number { color: var(--info); }
+        .card.score .number { color: var(--clean); }
+
+        .section-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 24px 0 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.2;
+            letter-spacing: 0;
+        }
+
+        .section-count {
+            color: var(--muted);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .issue {
+            display: grid;
+            grid-template-columns: 120px minmax(0, 1fr);
+            gap: 14px;
+            background: var(--surface);
+            padding: 14px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            border-left: 4px solid;
+        }
+
+        .issue.critical { border-left-color: var(--critical); }
+        .issue.warning { border-left-color: var(--warning); }
+        .issue.info { border-left-color: var(--info); }
+
+        .severity {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+            padding: 5px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0;
+            border: 1px solid;
+        }
+
+        .severity.critical {
+            color: var(--critical);
+            border-color: rgba(233, 69, 96, 0.45);
+            background: rgba(233, 69, 96, 0.10);
+        }
+
+        .severity.warning {
+            color: var(--warning);
+            border-color: rgba(244, 162, 97, 0.45);
+            background: rgba(244, 162, 97, 0.10);
+        }
+
+        .severity.info {
+            color: var(--info);
+            border-color: rgba(42, 157, 143, 0.45);
+            background: rgba(42, 157, 143, 0.10);
+        }
+
+        .issue-body {
+            min-width: 0;
+        }
+
+        .issue-topline {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 6px;
+        }
+
         .issue-type {
             font-weight: 600;
-            color: var(--vscode-descriptionForeground);
+            color: var(--vscode-foreground);
+            overflow-wrap: anywhere;
         }
+
         .issue-location {
-            font-family: monospace;
-            color: var(--vscode-descriptionForeground);
-            font-size: 0.9em;
+            font-family: var(--vscode-editor-font-family), monospace;
+            color: var(--muted);
+            font-size: 12px;
+            text-align: right;
+            overflow-wrap: anywhere;
         }
+
         .issue-message {
             color: var(--vscode-foreground);
+            overflow-wrap: anywhere;
         }
+
         .empty {
+            display: grid;
+            place-items: center;
+            min-height: 220px;
+            color: var(--muted);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 32px;
             text-align: center;
-            color: var(--vscode-descriptionForeground);
-            padding: 40px;
+        }
+
+        .empty strong {
+            display: block;
+            color: var(--clean);
+            font-size: 18px;
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 760px) {
+            .page {
+                padding: 16px;
+            }
+
+            .hero {
+                grid-template-columns: 1fr;
+            }
+
+            .summary {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .issue {
+                grid-template-columns: 1fr;
+            }
+
+            .severity {
+                width: max-content;
+            }
+
+            .issue-topline {
+                display: block;
+            }
+
+            .issue-location {
+                text-align: left;
+                margin-top: 4px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>🤖 ai-reviewer Results</h1>
-    
-    <div class="summary">
-        <div class="card critical">
-            <div class="number">${results.critical.length}</div>
-            <div>Critical</div>
-        </div>
-        <div class="card warning">
-            <div class="number">${results.warning.length}</div>
-            <div>Warning</div>
-        </div>
-        <div class="card info">
-            <div class="number">${results.info.length}</div>
-            <div>Info</div>
-        </div>
-    </div>
-
-    <h2>Issues (${totalIssues} total)</h2>
-    
-    ${results.critical.length > 0 ? '<h3>Critical</h3>' : ''}
-    ${results.critical.map(issue => `
-        <div class="issue critical">
-            <div class="issue-header">
-                <span class="issue-type">${issue.type}</span>
-                <span class="issue-location">${issue.location}</span>
+    <main class="page">
+        <section class="hero">
+            <div>
+                <div class="eyebrow">AI code review</div>
+                <h1>Scan Results</h1>
+                <p class="subtitle">${totalIssues} total findings across critical, warning, and info levels.</p>
             </div>
-            <div class="issue-message">${issue.message}</div>
-        </div>
-    `).join('')}
+            <div class="status-pill ${statusClass}">${statusText}</div>
+        </section>
 
-    ${results.warning.length > 0 ? '<h3>Warning</h3>' : ''}
-    ${results.warning.map(issue => `
-        <div class="issue warning">
-            <div class="issue-header">
-                <span class="issue-type">${issue.type}</span>
-                <span class="issue-location">${issue.location}</span>
-            </div>
-            <div class="issue-message">${issue.message}</div>
-        </div>
-    `).join('')}
+        <section class="summary" aria-label="Scan summary">
+            ${renderSummaryCard('critical', 'Critical', results.critical.length)}
+            ${renderSummaryCard('warning', 'Warning', results.warning.length)}
+            ${renderSummaryCard('info', 'Info', results.info.length)}
+            ${renderSummaryCard('score', 'Score', `${score}/10`)}
+        </section>
 
-    ${results.info.length > 0 ? '<h3>Info</h3>' : ''}
-    ${results.info.map(issue => `
-        <div class="issue info">
-            <div class="issue-header">
-                <span class="issue-type">${issue.type}</span>
-                <span class="issue-location">${issue.location}</span>
-            </div>
-            <div class="issue-message">${issue.message}</div>
-        </div>
-    `).join('')}
-
-    ${totalIssues === 0 ? '<div class="empty">No issues found! ✅</div>' : ''}
+        ${totalIssues === 0
+            ? '<section class="empty"><div><strong>No issues found</strong><span>The current scan did not report critical, warning, or info findings.</span></div></section>'
+            : `
+                ${renderIssueSection('critical', 'Critical', results.critical)}
+                ${renderIssueSection('warning', 'Warnings', results.warning)}
+                ${renderIssueSection('info', 'Info', results.info)}
+            `}
+    </main>
 </body>
 </html>`;
+}
+
+function renderSummaryCard(kind: string, label: string, value: number | string): string {
+    return `
+        <article class="card ${kind}">
+            <div class="card-label">${escapeHtml(label)}</div>
+            <div class="number">${escapeHtml(String(value))}</div>
+        </article>
+    `;
+}
+
+function renderIssueSection(severity: 'critical' | 'warning' | 'info', title: string, issues: Issue[]): string {
+    if (issues.length === 0) {
+        return '';
+    }
+
+    return `
+        <section>
+            <div class="section-header">
+                <h2>${escapeHtml(title)}</h2>
+                <span class="section-count">${issues.length} ${issues.length === 1 ? 'finding' : 'findings'}</span>
+            </div>
+            ${issues.map(issue => renderIssueCard(severity, issue)).join('')}
+        </section>
+    `;
+}
+
+function renderIssueCard(severity: 'critical' | 'warning' | 'info', issue: Issue): string {
+    return `
+        <article class="issue ${severity}">
+            <div class="severity ${severity}">${escapeHtml(severity)}</div>
+            <div class="issue-body">
+                <div class="issue-topline">
+                    <div class="issue-type">${escapeHtml(issue.type)}</div>
+                    <div class="issue-location">${escapeHtml(issue.location)}</div>
+                </div>
+                <div class="issue-message">${escapeHtml(issue.message)}</div>
+            </div>
+        </article>
+    `;
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 class ResultsTreeProvider implements vscode.TreeDataProvider<string> {
