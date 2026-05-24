@@ -1,6 +1,8 @@
 node_modules/
-out/
-*.vsix
 .vscode-test/
 coverage/
 .eslintcache
+
+# Compiled files (optional, can be built)
+out/
+*.vsix
